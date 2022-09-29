@@ -1,8 +1,6 @@
 import serial
+import serial.tools.list_ports
 
 
-
-def interpreter(datatype,datas):
-    for data in datas:
 
 
