@@ -1,84 +1,152 @@
-import sys
-import syslog
+# coding=UTF-8
 import time
-import serial
-import cv2 as cv
-import numpy as np
-import imgProcess
-import lineTracker
-from dataProcess import FC_Base_Uart_Communication
-from Base import Byte_Var
-
-# opencv初始化
-cap = cv.VideoCapture(0)
-cap.open(0)
-
-# 霍夫变换参数
-rho = 1
-theta = np.pi / 180
-threshold = 15
-min_line_len = 40
-max_line_gap = 20
-
+from time import sleep
+from classCommunicator import class_communicator
+from classPID import PID
+from classMission import class_mission
+from imgProcess import init_cap
+from imgProcess import visualOpen
+'''
+目前写的这一部分只是用于任务调度，可能以后就是用来执行任务用的主程序大概
+注意，绝对不要让实例的名字和类的一样，不然会变得不幸
+HZW
+'''
 # 定义串口
-port = ...
+# 这个串口是树莓派的串口TX&RX
+port = '/dev/ttyAMA0'
+
 # 实例化发送类
-sendclass = FC_Base_Uart_Communication(port)
+sendclass = class_communicator(port)
+
+# 实例化任务控制
+mission = class_mission(sendclass)
+
+# 开启摄像头
+cap = init_cap()
+
+# 初始化PID
+P = 1
+I = 0.2
+D = 0.002
+pidx = PID(P, I, D)
+# 50ms更新PID
+pidx.setSampleTime(0.1)
+
+# 视觉测试代码
+# while 1:
+#     error_y, average_x = visualOpen(cap)
+#     error_y = error_y/20
+#     pidx.update(error_y)
+#     control_y = pidx.output
+#     print(control_y)
 
 
-class data_send_temp_struct:
-    takeofforlanding = Byte_Var("u8", int, name="takeofforlanding")
-    vel_x = Byte_Var("s16", int, name="vel_x")  # cm/s
-    vel_y = Byte_Var("s16", int, name="vel_y")  # cm/s
-    vel_z = Byte_Var("s16", int, name="vel_z")  # cm/s
-    pos_x = Byte_Var("s32", int, name="pos_x")  # cm
-    pos_y = Byte_Var("s32", int, name="pos_y")  # cm
-    testint = Byte_Var("u8", int, name="testint")
-    testint2 = Byte_Var("u8", int, name="testint2")
-    testfloat = Byte_Var("u16", float, name="testfloat")
-    testbool = Byte_Var("u8", bool, name="testbool")
+# PID更新周期设为10ms
 
-    def __init__(self):
-        self.testint.value(6)
-        self.testint.value(12)
-        self.testfloat.value(6.6)
-        self.testbool.value(True)
+state = 0
+time_count = 0
+current_time = 0
+last_time = 0
 
-    def dataoutput(self, option: str):
-        if option == 'vel_x':
-            return self.vel_x
-        elif option == 'vel_y':
-            return self.vel_y
-        elif option == 'vel_z':
-            return self.vel_z
-        elif option == 'testint':
-            return self.testint
-        elif option == 'testint2':
-            return self.testint2
-        elif option == 'testfloat':
-            return self.testfloat
-        elif option == 'testbool':
-            return self.testbool
+while state is not 5:
+    sleep(0.001)
+    if state == 0:
+        visualOpen(cap)
+        # 实时控制归位
+        mission.realtime_control_reset()
+        sleep(0.5)
+        mission.realtime_control_send()
+        sleep(2)
 
+        state = 1
 
-def datasendtest():
-    sendclass.send_data_to_fc(data_send_temp_struct.testint.bytes, option=0x22)
-    
+    elif state == 1:
+        visualOpen(cap)
+        # 设置程控
+        mission.mode_set(2)
+        sleep(0.2)
+        # 起飞
+        mission.takeoff(135)
+        sleep(6)
+        # 前进到线的位置
+        mission.program_control_move(90, 12, 0)
+        sleep(12)
+        # 再次初始化实时控制
+        mission.realtime_control_reset()
+        mission.mode_set(1)
+        sleep(0.2)
+        mission.realtime_control_send()
+        # PID控制初始化
+        pidx.clear()
+        current_time = time.time()
+        last_time = current_time
 
-def visualOpen() -> None:
-    # 一定要注意这里的写法，不然会运行不了
-    while cap.isOpened():
-        res, frame = cap.read()
-        if res:
-            cv.imshow("Webcam", frame)
-            # 对图像的二值化处理
-            result = imgProcess.imgProcess(frame)
-            cv.imshow('result', result)
-            # 找出线，并且计算运动方式
-            drawing, lines = lineTracker.hough_lines(result, rho, theta, threshold, min_line_len, max_line_gap)
-            cv.imshow('drawing', drawing)
-            key_pressed = cv.waitKey(100)
-            # print('单机窗口，输入按键，电脑按键为', key_pressed, '按esc键结束')
-            if key_pressed == 27:
-                break
-    cv.destroyAllWindows()
+        state = 2
+
+    elif state == 2:
+        # 更新当前时间
+        current_time = time.time()
+        # 持续调用视觉
+        error_y, average_x = visualOpen(cap)
+        # 计算控制量
+        error_y = error_y / 20
+        pidx.update(error_y)
+        control_y = pidx.output / 5
+        feedback = int(abs(control_y)/2)
+        #print(control_y)
+        # 更新控制量
+        mission.realtime_control_config(int(control_y), 4-feedback, 0, 0)
+        # 间隔20ms发送
+        if current_time - last_time >= 0.05:
+            mission.realtime_control_send()
+            time_count = 0.05 + time_count
+            last_time = current_time
+        # 总共就飞8秒
+        if time_count > 4:
+            state = 3
+            time_count = 0
+            #在往回飞前停一下
+            sleep(0.1)
+            mission.realtime_control_reset()
+            mission.realtime_control_send()
+            sleep(0.4)
+
+    elif state == 3:
+        # 更新当前时间
+        current_time = time.time()
+        # 视觉持续开启
+        error_y, average_x = visualOpen(cap)
+        # 计算控制量
+        error_y = error_y / 20
+        pidx.update(error_y)
+        control_y = pidx.output / 5
+        feedback = int(abs(control_y)/2)
+        # 更新控制量
+        mission.realtime_control_config(int(control_y), -4+feedback, 0, 0)
+        # 间隔20ms发送
+        if current_time - last_time >= 0.05:
+            mission.realtime_control_send()
+            time_count = 0.05 + time_count
+            last_time = current_time
+        # 就飞8秒
+        if time_count > 4:
+            state = 4
+            mission.realtime_control_reset()
+            mission.realtime_control_send()
+            sleep(0.4)
+            mission.mode_set(2)
+            sleep(0.3)
+            time_count = 0
+
+    elif state == 4:
+        # 设置程控
+        mission.mode_set(2)
+        sleep(0.2)
+        # 往回飞
+        mission.program_control_move(90, 12, 180)
+        sleep(9)
+        # 降落
+        mission.land()
+        sleep(3)
+        # 完事
+        state = 5

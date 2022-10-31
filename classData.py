@@ -1,11 +1,18 @@
+# coding=UTF-8
 import struct
 import threading
 import time
 
 # 数据结构，很好用了
-from SerialClass import FC_Serial
+from classSerial import FC_Serial
+
+'''
+在这个文件里搞定所有常用数据结构
+直接实例化即可调用
+'''
 
 
+# 数据定义类
 class Byte_Var:
     """
     这部分定义发送数据格式，实现int向s16u16之类的转换
@@ -13,17 +20,15 @@ class Byte_Var:
     """
 
     _value = 0
-    _last_update_time = 0
     _byte_length = 0
-    _multi: int = 1
+    _multi = 1
     _signed = False
     _var_type = None
 
-    def __init__(self, ctype="u8", data_type=int, value_multi=1, name=None):
+    def __init__(self, ctype="u8", data_type=int, value_multi=1):
         self.reset(0, ctype, data_type, value_multi)
-        self.name = name
 
-    def reset(self, init_value, ctype: str, py_data_type, value_multi=1, name=None):
+    def reset(self, init_value, ctype, py_data_type, value_multi=1):
         # 解析一下自己定的数据类型
         ctype_word_part = ctype[0]
         ctype_number_part = ctype[1:]
@@ -34,18 +39,16 @@ class Byte_Var:
         elif ctype_word_part.lower() == "s":
             self._signed = True
         else:
-            raise ValueError(f"Invalid ctype: {ctype}")
+            raise ValueError("Invalid ctype: {ctype}")
         if int(ctype_number_part) % 8 != 0:
-            raise ValueError(f"Invalid ctype: {ctype}")
+            raise ValueError("Invalid ctype: {ctype}")
         if py_data_type not in [int, float, bool]:
-            raise ValueError(f"Invalid var_type: {py_data_type}")
+            raise ValueError("Invalid var_type: {py_data_type}")
 
         self._byte_length = int(int(ctype_number_part) // 8)
         self._var_type = py_data_type
         self._multi = value_multi
         self._value = self._var_type(init_value)
-        # self._last_update_time = time.time()
-        self.name = name
 
         return self
 
@@ -54,7 +57,7 @@ class Byte_Var:
     def value(self):
         return self._value
 
-    # 修改属性（数据安全真滴牛）
+    # 修改属性
     @value.setter
     def value(self, value):
         self._value = self._var_type(value)
@@ -67,7 +70,7 @@ class Byte_Var:
     # 转换为byte输出
     @property
     def bytes(self):
-        if self._multiplier != 1:
+        if self._multi != 1:
             return int(round(self._value / self._multi)).to_bytes(
                 self._byte_length, "little", signed=self._signed
             )
@@ -82,7 +85,6 @@ class Byte_Var:
         self._value = self._var_type(
             int.from_bytes(value, "little", signed=self._signed) * self._multiplier
         )
-        self._last_update_time = time.time()
 
     # 长度
     @property
@@ -94,16 +96,8 @@ class Byte_Var:
     def byte_length(self, value):
         raise Exception("byte_length is read-only")
 
-    # 时间（用不上（暂时））
-    # @property
-    # def last_update_time(self):
-    #     return self._last_update_time
-    #
-    # @last_update_time.setter
-    # def last_update_time(self, value):
-    #     raise Exception("last_update_time is read-only")
-
     # 完全不知道这玩意干啥用
+    # 可能是指示数据类型用
     @property
     def struct_fmt_type(self):
         base_dict = {1: "b", 2: "h", 4: "i", 8: "q"}
@@ -113,35 +107,18 @@ class Byte_Var:
             return base_dict[self._byte_length].upper()
 
 
-class FC_Base_Uart_Communication:
+class class_option:
+    take_off = None
+    land = None
+    lock_unlock = None
+    mode_change = None
+    realtime_control = None
+    program_control = None
 
-    def __init__(self, port: str):
-        super().__init__()
-        self.running = False
-        self.connected = False
-        self._start_bit = 0xAA
-        self._ser_32 = None
-        self.serial_init(port)
-
-    # 标注一下：这里的发送还是得调用SerialClass里的FC_serial
-    # 稍稍魔改一下应该就能用了
-    # 应答先不管
-    def send_data_to_fc(self, data: bytes, option: int):
-        self._set_option(option)
-        sended = self._ser_32.write(data)
-        return sended
-
-    def _set_option(self, option: int) -> None:
-        self._ser_32.send_config(startBit=self._start_bit, optionBit=[option])
-
-    def serial_init(self, serial_port: str, bit_rate: int = 500000):
-        # 某种意义上是初始化
-        self._ser_32 = FC_Serial(serial_port, bit_rate)
-        self._set_option(0)
-        self.running = True
-
-    def quit(self, joined=False) -> None:
-        self.running = False
-        if self._ser_32:
-            self._ser_32.close()
-        # logger.info("[FC] Threads closed, FC offline")
+    def __init__(self):
+        self.lock_unlock = 0x01
+        self.take_off = 0x02
+        self.realtime_control = 0x03
+        self.land = 0x04
+        self.mode_change = 0x05
+        self.program_control = 0x06
