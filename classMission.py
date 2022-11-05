@@ -2,11 +2,12 @@
 from time import sleep
 from classData import Byte_Var
 from classData import class_option
-from classCommunicator import class_communicator
 
 '''
 基本任务结构体
 实例化后直接调用
+学长管这个叫protocol，感觉挺正确但是懒得改
+HZW
 '''
 
 
@@ -40,6 +41,10 @@ class class_mission:
     rc_vel_z.value = 0
     rc_yaw = Byte_Var("s16", int, 1)
     rc_yaw.value = 0
+    start_beep_data = Byte_Var("u8", int, 1)
+    start_beep_data.value = 0x01
+    stop_beep_data = Byte_Var("u8", int, 1)
+    stop_beep_data.value = 0x02
 
     def __init__(self, sendclass=None):
         self.sendclass = sendclass
@@ -97,3 +102,9 @@ class class_mission:
             self.sendclass.send_data_to_fc(self.first_mode_data.bytes, self.option.mode_change)
         elif mode == 2:
             self.sendclass.send_data_to_fc(self.second_mode_data.bytes, self.option.mode_change)
+
+    def start_beep(self):
+        self.sendclass.send_data_to_fc(self.start_beep_data.bytes, self.option.beep)
+
+    def stop_beep(self):
+        self.sendclass.send_data_to_fc(self.stop_beep_data.bytes, self.option.beep)

@@ -33,7 +33,7 @@ class class_communicator:
         return sent
 
     # 退出函数
-    def quit(self, joined=False):
+    def quit(self):
         self.running = False
         if self._ser_32:
             self._ser_32.close()

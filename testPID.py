@@ -69,6 +69,6 @@ def test_pid(P=1.2, I=1, D=0.001, L=100):
 
 
 if __name__ == "__main__":
-    test_pid(1, 0.5, 0.001)
+    test_pid(1, 0.5, 0.002)
 
 #    test_pid(0.8, L=50)

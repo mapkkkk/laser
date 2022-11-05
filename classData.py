@@ -1,18 +1,10 @@
 # coding=UTF-8
-import struct
-import threading
-import time
-
-# 数据结构，很好用了
-from classSerial import FC_Serial
-
-'''
+"""
 在这个文件里搞定所有常用数据结构
 直接实例化即可调用
-'''
+"""
 
 
-# 数据定义类
 class Byte_Var:
     """
     这部分定义发送数据格式，实现int向s16u16之类的转换
@@ -83,7 +75,7 @@ class Byte_Var:
     @bytes.setter
     def bytes(self, value):
         self._value = self._var_type(
-            int.from_bytes(value, "little", signed=self._signed) * self._multiplier
+            int.from_bytes(value, "little", signed=self._signed) * self._multi
         )
 
     # 长度
@@ -114,6 +106,7 @@ class class_option:
     mode_change = None
     realtime_control = None
     program_control = None
+    beep = None
 
     def __init__(self):
         self.lock_unlock = 0x01
@@ -122,3 +115,4 @@ class class_option:
         self.land = 0x04
         self.mode_change = 0x05
         self.program_control = 0x06
+        self.beep = 0x07

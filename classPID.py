@@ -42,6 +42,7 @@ class PID:
         self.last_time = self.current_time
 
         # Windup Guard
+        # 积分上限还是给小一些，不然容易过冲
         self.int_error = 0.0
         self.windup_guard = 10.0
 
@@ -51,7 +52,7 @@ class PID:
         """Calculates PID value for given reference feedback
 
         .. math::
-            u(t) = K_p e(t) + K_i \int_{0}^{t} e(t)dt + K_d {de}/{dt}
+            u(t) = K_p e(t) + K_i /int_{0}^{t} e(t)dt + k_d {de}/{dt}
 
         .. figure:: images/pid_1.png
            :align:   center
@@ -106,7 +107,7 @@ class PID:
     def setWindup(self, windup):
         """Integral windup, also known as integrator windup or reset windup,
         refers to the situation in a PID feedback controller where
-        a large change in setpoint occurs (say a positive change)
+        a large change in set_point occurs (say a positive change)
         and the integral terms accumulates a significant error
         during the rise (windup), thus overshooting and continuing
         to increase as this accumulated error is unwound
@@ -117,6 +118,6 @@ class PID:
 
     def setSampleTime(self, sample_time):
         """PID that should be updated at a regular interval.
-        Based on a pre-determined sampe time, the PID decides if it should compute or return immediately.
+        Based on a pre-determined sample time, the PID decides if it should compute or return immediately.
         """
         self.sample_time = sample_time

@@ -31,8 +31,7 @@ def init_cap():
 # 视觉函数
 def visualOpen(cap):
     a_total_x = 0
-    a_total_y = 0
-    a_total_k = 0
+    error_y = 0
     # 一定要注意这里的写法，不然会运行不了
     print('opened')
     if cap.isOpened():
