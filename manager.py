@@ -1,11 +1,13 @@
 # coding=UTF-8
 import time
 from time import sleep
+
 from classCommunicator import class_communicator
+from classProtocol import class_protocol
 from classPID import PID
-from classMission import class_mission
-from imgProcess import init_cap
-from imgProcess import visualOpen
+from classImgProcess import init_cap
+from classImgProcess import visualOpen
+
 '''
 目前写的这一部分只是用于任务调度，可能以后就是用来执行任务用的主程序大概
 注意，绝对不要让实例的名字和类的一样，不然会变得不幸
@@ -22,7 +24,7 @@ port = '/dev/ttyAMA0'
 sendclass = class_communicator(port)
 
 # 实例化任务控制
-mission = class_mission(sendclass)
+mission = class_protocol(sendclass)
 
 # 开启摄像头
 cap = init_cap()
@@ -71,9 +73,17 @@ while state is not 5:
         # 起飞
         mission.takeoff(140)
         sleep(6)
+        mission.start_beep()
+        sleep(1)
+        mission.stop_beep()
+        sleep(1)
         # 前进到线的位置
         mission.program_control_move(90, 15, 0)
         sleep(12)
+        mission.start_beep()
+        sleep(1)
+        mission.stop_beep()
+        sleep(1)
         mission.start_beep()
         sleep(1)
         mission.stop_beep()

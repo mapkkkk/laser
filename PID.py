@@ -4,6 +4,10 @@ import time
 '''
 PID控制
 这个类写的好，直接拿来爽用
+2022.11.6 
+认为需要加入一个multi量作为系数使用，在输出之前直接处理完就好
+还需要一个类型定义，直接转换为对应的数据类型
+要再写一个类还是就这个样子呢。。。
 '''
 
 
@@ -46,6 +50,12 @@ class PID:
         self.int_error = 0.0
         self.windup_guard = 10.0
 
+        self.output = 0.0
+
+    def reset(self):
+        self.last_error = 0.0
+        self.current_time = time.time()
+        self.last_time = self.current_time
         self.output = 0.0
 
     def update(self, feedback_value, current_time=None):
