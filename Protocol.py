@@ -1,21 +1,23 @@
 # coding=UTF-8
 import struct
-from time import sleep
-
-from classData import class_option
-from classCommunicator import class_communicator
-from classData import Data_To_FC
+import time
+from Data import class_option
+from Base import base_communicate
+from Data import Data_To_FC
+from Data import Byte_Var
+from Logger import logger
 
 '''
-基本任务结构体
-实例化后直接调用
-学长管这个叫protocol，感觉挺正确但是懒得改
-结果还是改了
+基本任务底层
 HZW
+NOTE：
+当前实现功能：
+CMD转发（在飞控上也应该写好了相关的东西）
+最常用的方法：实时控制
 '''
 
 
-class class_protocol(class_communicator):
+class class_protocol(base_communicate):
     option = None
     # 数据定义
     data_to_fc = None
@@ -23,75 +25,218 @@ class class_protocol(class_communicator):
     HOLD_POS_MODE = 2
     PROGRAM_MODE = 3
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self.byte_temp1 = Byte_Var()
+        self.byte_temp2 = Byte_Var()
+        self.byte_temp3 = Byte_Var()
         '''
         在上一个类中已经完成底层通讯的搭建，send和receive都可直接调用，且能自动化运行
-        并且，（如果我没理解错的话），监听也启动了，并且一直在后台工作
         在这个类中完成一部分的"一键"操作
         '''
         self.option = class_option()
         self.data_to_fc = Data_To_FC()
 
-    def takeoff(self, height):
-        # 解锁
-        # print(self.data_to_fc.unlock_data.bytes)
-        self.data_to_fc.takeoff_height.value = height
-        self.send_data_to_fc(self.data_to_fc.unlock_data.bytes, self.option.lock_unlock)
-        sleep(2)
-        # 切换到程控模式起飞
-        self.send_data_to_fc(self.data_to_fc.second_mode_data.bytes, self.option.mode_change)
-        sleep(0.2)
-        # 起飞
-        self.send_data_to_fc(self.data_to_fc.takeoff_height.bytes, self.option.takeoff)
-        sleep(3)
-        # 返回1作为执行完成标记
-        return 1
+    '''
+    TODO：
+    1、更改数据通信格式：帧头+mainoption（标记是主要命令还是转发的cmd）+datalen+suboption+data+checksum
+    帧头、mainoption、datalen、checksum均在serial中完成添加，此处仅需考虑中间data部分
+    关于suboption可以认为仅在此处有使用到，这边一会mark一下所有的分别是什么
+    
+    '''
 
-    def land(self):
-        # 切换到程控
-        self.send_data_to_fc(self.data_to_fc.second_mode_data.bytes, self.option.mode_change)
-        sleep(0.2)
-        # 降落
-        self.send_data_to_fc(self.data_to_fc.land_data.bytes, self.option.land)
-        sleep(3)
-        return 1
+    def check_mode(self, target_mode) -> bool:
+        """
+        检查当前模式是否与需要的模式一致
+        """
+        mode_dict = {1: "HOLD ALT", 2: "HOLD POS", 3: "PROGRAM"}
+        if self.state.mode.value != target_mode:
+            if self.settings.auto_change_mode:
+                self.set_flight_mode(target_mode)
+                time.sleep(0.1)  # 等待模式改变完成
+                return True
+            else:
+                logger.error(
+                    f"[FC] Mode error: action required mode is {mode_dict[target_mode]}"
+                    f", but current mode is {mode_dict[self.state.mode.value]}"
+                )
+                return False
+        return True
 
-    def program_control_move(self, dis, vel, angle):
-        self.data_to_fc.program_dis.value = dis
-        self.data_to_fc.program_vel.value = vel
-        self.data_to_fc.program_angle.value = angle
+    ##################################命令发送，经过MCU处理进行控制###################################
 
-        data_to_send = (self.data_to_fc.program_dis.bytes +
-                        self.data_to_fc.program_vel.bytes +
-                        self.data_to_fc.program_angle.bytes)
+    def send_command(self, sub_option: int, data: bytes = b"", need_ack=False) -> None:
+        self.byte_temp1.reset(sub_option, "u8", int)
+        self.send_data_to_fc(
+            self.byte_temp1.bytes + data, 0x01, need_ack=need_ack
+        )
 
-        self.send_data_to_fc(data_to_send, self.option.program_control)
-
-    # def realtime_control_send(self):
-    #     data_to_send = self.data_to_fc.rc_vel_x.bytes + \
-    #                    self.data_to_fc.rc_vel_y.bytes + \
-    #                    self.data_to_fc.rc_vel_z.bytes + \
-    #                    self.data_to_fc.rc_yaw.bytes
-    #
-    #     self.send_data_to_fc(data_to_send, self.option.realtime_control)
-
-    def realtime_control_send(self, vel_x: int = None, vel_y: int = None, vel_z: int = None, yaw: int = 0):
-        data = struct.pack("<hhhh", int(vel_x), int(vel_y), int(vel_z), int(-yaw))  # 这里的<指的是小端，h是short int
-        self.send_data_to_fc(data, self.option.realtime_control, False)
-
-    def realtime_control_reset(self):
-        data = struct.pack("<hhhh", 0, 0, 0, 0)
-        self.send_data_to_fc(data, self.option.realtime_control, False)
-
-    def mode_set(self, mode):
-        if mode == 1:
-            self.send_data_to_fc(self.data_to_fc.first_mode_data.bytes, self.option.mode_change)
-        elif mode == 2:
-            self.send_data_to_fc(self.data_to_fc.second_mode_data.bytes, self.option.mode_change)
+    def send_realtime_control_data(
+            self, vel_x: int = 0, vel_y: int = 0, vel_z: int = 0, yaw: int = 0
+    ) -> None:
+        """
+        发送实时控制帧, 仅在定点模式下有效(MODE=2), 切换模式前需要确保遥控器摇杆全部归中
+        有熔断机制，超过一秒的帧间隔会导致熔断，再次获得数据后会恢复
+        在application中完成实时控制的完全体
+        vel_x,vel_y,vel_z: cm/s 匿名坐标系
+        yaw: deg/s 顺时针为正
+        """
+        data = struct.pack("<hhhh", int(vel_x), int(vel_y), int(vel_z), int(-yaw))
+        self.send_command(0x03, data)  # 帧结尾
 
     def start_beep(self):
+        """
+        蜂鸣器控制
+        """
         self.send_data_to_fc(self.data_to_fc.start_beep_data.bytes, self.option.beep)
 
     def stop_beep(self):
+        """
+        蜂鸣器控制
+        """
         self.send_data_to_fc(self.data_to_fc.stop_beep_data.bytes, self.option.beep)
+
+    #####################################IMU直接转发#######################################
+
+    def _send_imu_command_frame(self, CID: int, CMD0: int, CMD1: int, CMD_data=b""):
+        self.byte_temp1.reset(CID, "u8", int)
+        self.byte_temp2.reset(CMD0, "u8", int)
+        self.byte_temp3.reset(CMD1, "u8", int)
+        bytes_data = bytes(CMD_data)
+        if len(bytes_data) < 8:
+            bytes_data += b"\x00" * (8 - len(bytes_data))
+        if len(bytes_data) > 8:
+            raise Exception("CMD_data length is too long")
+        data_to_send = (
+                self.byte_temp1.bytes
+                + self.byte_temp2.bytes
+                + self.byte_temp3.bytes
+                + bytes_data
+        )
+        self.send_data_to_fc(data_to_send, 0x02, need_ack=True)
+        # cid = 0x10, cmd0 = 0x00 cmd1 = 0x04 -> hovering
+        self.last_sended_command = (CID, CMD0, CMD1)
+
+    def set_flight_mode(self, mode: int) -> None:
+        """
+        设置飞行模式: (随时有效)
+        0: 姿态自稳 (危险,禁用)
+        1: 定高
+        2: 定点
+        3: 程控
+        """
+        if mode not in [1, 2, 3]:
+            raise ValueError("mode must be 1,2,3")
+        self.byte_temp1.reset(mode, "u8", int)
+        self._send_imu_command_frame(0x01, 0x01, 0x01, self.byte_temp1.bytes)
+
+    def unlock(self):
+        self._send_imu_command_frame(0x10, 0x00, 0x01)
+
+    def lock(self):
+        self._send_imu_command_frame(0x10, 0x00, 0x02)
+
+    def takeoff(self, target_height):
+        """
+        一键起飞 (除姿态模式外, 随时有效)
+        目标高度: 0-500 cm, 0为默认高度
+        """
+        self.byte_temp1.reset(target_height, "u16", int)
+        self._send_imu_command_frame(0x10, 0x00, 0x05, self.byte_temp1.bytes)
+
+    def land(self):
+        """
+        一键降落 (除姿态模式外, 随时有效)
+        """
+        self._send_imu_command_frame(0x10, 0x00, 0x06)
+
+    def stabilize(self):
+        """
+        恢复定点悬停, 将终止正在进行的所有控制 (随时有效)
+        """
+        self._send_imu_command_frame(0x10, 0x00, 0x04)
+
+    def horizontal_move(self, distance: int, speed: int, direction: int) -> None:
+        """
+        水平移动: (程控模式下有效)
+        移动距离:0-10000 cm
+        移动速度:10-300 cm/s
+        移动方向:0-359 度 (当前机头为0参考,顺时针)
+        """
+        self.check_mode(3)
+        self.byte_temp1.reset(distance, "u16", int)
+        self.byte_temp2.reset(speed, "u16", int)
+        self.byte_temp3.reset(direction, "u16", int)
+        self._send_imu_command_frame(
+            0x10,
+            0x02,
+            0x03,
+            self.byte_temp1.bytes + self.byte_temp2.bytes + self.byte_temp3.bytes,
+        )
+
+    def go_up(self, distance: int, speed: int) -> None:
+        """
+        上升: (程控模式下有效)
+        上升距离:0-10000 cm
+        上升速度:10-300 cm/s
+        """
+        self.check_mode(3)
+        self.byte_temp1.reset(distance, "u16", int)
+        self.byte_temp2.reset(speed, "u16", int)
+        self._send_imu_command_frame(
+            0x10, 0x02, 0x01, self.byte_temp1.bytes + self.byte_temp2.bytes
+        )
+
+    def go_down(self, distance: int, speed: int) -> None:
+        """
+        下降: (程控模式下有效)
+        下降距离:0-10000 cm
+        下降速度:10-300 cm/s
+        """
+        self.check_mode(3)
+        self.byte_temp1.reset(distance, "u16", int)
+        self.byte_temp2.reset(speed, "u16", int)
+        self._send_imu_command_frame(
+            0x10, 0x02, 0x02, self.byte_temp1.bytes + self.byte_temp2.bytes
+        )
+
+    def turn_left(self, deg: int, speed: int) -> None:
+        """
+        左转: (程控模式下有效)
+        左转角度:0-359 度
+        左转速度:5-90 deg/s
+        """
+        self.check_mode(3)
+        self.byte_temp1.reset(deg, "u16", int)
+        self.byte_temp2.reset(speed, "u16", int)
+        self._send_imu_command_frame(
+            0x10, 0x02, 0x07, self.byte_temp1.bytes + self.byte_temp2.bytes
+        )
+
+    def turn_right(self, deg: int, speed: int) -> None:
+        """
+        右转: (程控模式下有效)
+        右转角度:0-359 度
+        右转速度:5-90 deg/s
+        """
+        self.check_mode(3)
+        self.byte_temp1.reset(deg, "u16", int)
+        self.byte_temp2.reset(speed, "u16", int)
+        self._send_imu_command_frame(
+            0x10, 0x02, 0x08, self.byte_temp1.bytes + self.byte_temp2.bytes
+        )
+
+    @property
+    def last_command_done(self) -> bool:
+        """
+        最后一次指令是否完成
+        """
+        return self.last_sended_command != self.state.command_now
+
+    @property
+    def hovering(self) -> bool:
+        """
+        是否正在悬停
+        """
+        stable_command = (0x10, 0x00, 0x04)
+        return self.state.command_now == stable_command

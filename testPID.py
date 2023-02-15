@@ -1,6 +1,6 @@
 """这个是别人用来测试PID的，有用到就好，懒得重复造轮子"""
 
-from classPID import PID
+from PID import PID
 import time
 import matplotlib.pyplot as plt
 import numpy as np

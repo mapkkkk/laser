@@ -1,12 +1,13 @@
 # coding=UTF-8
 import time
+import cv2 as cv
 from time import sleep
 
-from classCommunicator import class_communicator
-from classProtocol import class_protocol
-from classPID import PID
-from classImgProcess import init_cap
-from classImgProcess import visualOpen
+from Base import base_communicate
+from Protocol import class_protocol
+from PID import PID
+from ImgProcess import init_cap
+from ImgProcess import visualOpen
 
 '''
 目前写的这一部分只是用于任务调度，可能以后就是用来执行任务用的主程序大概
@@ -20,14 +21,13 @@ HZW
 #
 port = '/dev/ttyAMA0'
 
-# 实例化发送类
-sendclass = class_communicator(port)
-
 # 实例化任务控制
-mission = class_protocol(sendclass)
 
 # 开启摄像头
-cap = init_cap()
+cam = cv.VideoCapture(0)
+if not cam.isOpened():
+    cam.open(0)
+assert cam.isOpened()
 
 # 初始化PID
 P = 1
@@ -52,126 +52,3 @@ state = 0
 time_count = 0
 current_time = 0
 last_time = 0
-
-while state is not 5:
-    sleep(0.001)
-    if state == 0:
-        visualOpen(cap)
-        # 实时控制归位
-        mission.realtime_control_reset()
-        sleep(0.5)
-        mission.realtime_control_send()
-        sleep(2)
-
-        state = 1
-
-    elif state == 1:
-        visualOpen(cap)
-        # 设置程控
-        mission.mode_set(2)
-        sleep(0.2)
-        # 起飞
-        mission.takeoff(140)
-        sleep(6)
-        mission.start_beep()
-        sleep(1)
-        mission.stop_beep()
-        sleep(1)
-        # 前进到线的位置
-        mission.program_control_move(90, 15, 0)
-        sleep(12)
-        mission.start_beep()
-        sleep(1)
-        mission.stop_beep()
-        sleep(1)
-        mission.start_beep()
-        sleep(1)
-        mission.stop_beep()
-        sleep(0.1)
-        # 再次初始化实时控制
-        mission.realtime_control_reset()
-        mission.mode_set(1)
-        sleep(0.2)
-        mission.realtime_control_send()
-        # PID控制初始化
-        pidx.clear()
-        current_time = time.time()
-        last_time = current_time
-
-        state = 2
-
-    elif state == 2:
-        # 更新当前时间
-        current_time = time.time()
-        # 持续调用视觉
-        error_y, average_x = visualOpen(cap)
-        # 计算控制量
-        error_y = error_y / 20
-        pidx.update(error_y)
-        control_y = pidx.output / 5
-        feedback = int(abs(control_y)/2)
-        #print(control_y)
-        # 更新控制量
-        mission.realtime_control_config(int(control_y), 5-feedback, 0, 0)
-        # 间隔20ms发送
-        if current_time - last_time >= 0.05:
-            mission.realtime_control_send()
-            time_count = 0.05 + time_count
-            last_time = current_time
-        # 总共就飞6秒
-        if time_count > 6:
-            state = 3
-            time_count = 0
-            #在往回飞前停一下
-            sleep(0.1)
-            mission.realtime_control_reset()
-            mission.realtime_control_send()
-            sleep(0.4)
-            mission.start_beep()
-            sleep(1)
-            mission.stop_beep()
-            sleep(0.1)
-
-    elif state == 3:
-        # 更新当前时间
-        current_time = time.time()
-        # 视觉持续开启
-        error_y, average_x = visualOpen(cap)
-        # 计算控制量
-        error_y = error_y / 20
-        pidx.update(error_y)
-        control_y = pidx.output / 5
-        feedback = int(abs(control_y)/2)
-        # 更新控制量
-        mission.realtime_control_config(int(control_y), -6+feedback, 0, 0)
-        # 间隔20ms发送
-        if current_time - last_time >= 0.05:
-            mission.realtime_control_send()
-            time_count = 0.05 + time_count
-            last_time = current_time
-        # 就飞6秒
-        if time_count > 7:
-            state = 4
-            mission.realtime_control_reset()
-            mission.realtime_control_send()
-            sleep(0.4)
-            mission.mode_set(2)
-            sleep(0.3)
-            time_count = 0
-            mission.start_beep()
-            sleep(1)
-            mission.stop_beep()
-            sleep(0.1)
-
-    elif state == 4:
-        # 设置程控
-        mission.mode_set(2)
-        sleep(0.2)
-        # 往回飞
-        mission.program_control_move(90, 15, 180)
-        sleep(9)
-        # 降落
-        mission.land()
-        sleep(3)
-        # 完事
-        state = 5

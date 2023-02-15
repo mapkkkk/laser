@@ -3,9 +3,9 @@ import threading
 import time
 import traceback
 
-from classSerial import FC_Serial
-from classData import FC_State_Struct, FC_Settings_Struct
-from classLogger import logger
+from Serial import FC_Serial
+from Data import FC_State_Struct, FC_Settings_Struct
+from Logger import logger
 
 '''
 发送类
@@ -13,12 +13,19 @@ from classLogger import logger
 2022.11.20
 这里的logger完全照搬（搞得好想其他不是照搬的一样）
 并且完全没有搞懂logger是干啥用的，大概是python的控制台组件。。。
+类在继承的时候没有新建一个类，而是加以改动，不会产生另一个实例
+
+TODO:
+1_ receive 
+2_ send 
+3_ decode
+4_ encode
 '''
 
 
-class class_communicator(object):
+class base_communicate(object):
 
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
         super().__init__()
         self.running = False
         # 初始位
@@ -37,9 +44,8 @@ class class_communicator(object):
         self.settings = FC_Settings_Struct()
         self._waiting_ack = False
         self._received_ack = None
+        # 在发送锁，防止读取发送数据时时参数被接收端修改
         self._send_lock = threading.Lock()
-        # 开始监听飞控发来的东西
-        self.start_listen_serial('/dev/ttyAMA0', 500000, False)
 
     # option的设置函数
     def _set_option(self, option: int):
