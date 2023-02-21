@@ -227,7 +227,8 @@ class FC_State_Struct:
     ]
 
     def __init__(self):
-        self._fmt_string = "<" + "".join([i.struct_fmt_type for i in self.RECV_ORDER])
+        self._fmt_string = "<" + \
+            "".join([i.struct_fmt_type for i in self.RECV_ORDER])
         self._fmt_length = struct.calcsize(self._fmt_string)
 
     def update_from_bytes(self, bytes_data):
@@ -242,4 +243,3 @@ class FC_State_Struct:
     @property
     def command_now(self):
         return self.cid.value, self.cmd_0.value, self.cmd_1.value
-
