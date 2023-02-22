@@ -6,7 +6,7 @@ import time
 
 '''
 图像处理主程序
-python储存图片的方式是按照行X列的方式的，例如720p的图就是720X1080
+python储存图片的方式是按照行X列的方式的,例如720p的图就是720X1080
 '''
 
 # 霍夫变换参数
@@ -251,20 +251,20 @@ def onnxruntime_init():
         # 加载模型
         fd = FastestDetOnnx(drawOutput=False)
         # 目标检测
-        # while True:
-        #     img = cam.read()[1]
-        #     start = time.perf_counter()
-        #     ret = fd.detect(img)
-        #     end = time.perf_counter()
-        #     time_ = (end - start) * 1000.0
-        #     print("forward time:%fms" % time_)
-        #     cv.imshow("img", img)
-        #     if cv.waitKey(1) == 27:
-        #         break
+        while True:
+            img = cam.read()[1]
+            start = time.perf_counter()
+            ret = fd.detect(img)
+            end = time.perf_counter()
+            time_ = (end - start) * 1000.0
+            print("forward time:%fms" % time_)
+            cv.imshow("img", img)
+            if cv.waitKey(1) == 27:
+                break
         return cam, fd
 
 
-def onnxruntime():
+def onnxruntime(cam, fd):
     img = cam.read()[1]
     start = time.perf_counter()
     ret = fd.detect(img)
