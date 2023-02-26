@@ -7,10 +7,10 @@ import threading
 继承的类中的一切内容均直接可用
 在继承类中写的内容一般是原类的拓展内容，基本开发顺序仍然是底层往上
 在类中实例化的其他类永远可用，这个类往任何一个地方传都是成立的
-并且补充一下python里的传参机制，变量一般是传地址，参量一般是传值
+并且补充一下python里的传参机制,变量一般是传地址,参量一般是传值
 所以建立好的类就理解为是一个完整的程序，可被任何过程接入然后调用
 不用考虑这个类传入是否会被初始化而失去其作用
-但是不建议在两个线程中同时调用同一个类的函数，问题是。。。还没查，感觉上不行
+但是不建议在两个线程中同时调用同一个类的函数,问题是,还没查，感觉上不行
 '''
 
 
@@ -106,7 +106,8 @@ class class_application(class_protocol):
                 paused = False
                 self._realtime_control_data_in_xyzYaw = [0, 0, 0, 0]
             try:
-                self.send_realtime_control_data(*self._realtime_control_data_in_xyzYaw)
+                self.send_realtime_control_data(
+                    *self._realtime_control_data_in_xyzYaw)
             except Exception as e:
                 logger.warning(f"[FC] realtime control task error: {e}")
         logger.info("[FC] realtime control task stopped")
