@@ -10,9 +10,9 @@ from Logger import logger
 '''
 基本任务底层
 HZW
-NOTE：
+NOTE:
 当前实现功能：
-CMD转发（在飞控上也应该写好了相关的东西）
+CMD转发(在飞控上也应该写好了相关的东西)
 最常用的方法：实时控制
 '''
 
@@ -31,17 +31,17 @@ class class_protocol(base_communicate):
         self.byte_temp2 = Byte_Var()
         self.byte_temp3 = Byte_Var()
         '''
-        在上一个类中已经完成底层通讯的搭建，send和receive都可直接调用，且能自动化运行
+        在上一个类中已经完成底层通讯的搭建,send和receive都可直接调用,且能自动化运行
         在这个类中完成一部分的"一键"操作
         '''
         self.option = class_option()
         self.data_to_fc = Data_To_FC()
 
     '''
-    TODO：
-    1、更改数据通信格式：帧头+mainoption（标记是主要命令还是转发的cmd）+datalen+suboption+data+checksum
-    帧头、mainoption、datalen、checksum均在serial中完成添加，此处仅需考虑中间data部分
-    关于suboption可以认为仅在此处有使用到，这边一会mark一下所有的分别是什么
+    TODO:
+    1、更改数据通信格式:帧头+mainoption(标记是主要命令还是转发的cmd)+datalen+suboption+data+checksum
+    帧头、mainoption、datalen、checksum均在serial中完成添加,此处仅需考虑中间data部分
+    关于suboption可以认为仅在此处有使用到,这边一会mark一下所有的分别是什么
     
     '''
 
@@ -63,7 +63,7 @@ class class_protocol(base_communicate):
                 return False
         return True
 
-    ##################################命令发送，经过MCU处理进行控制###################################
+    ################################## 命令发送，经过MCU处理进行控制###################################
 
     def send_command(self, sub_option: int, data: bytes = b"", need_ack=False) -> None:
         self.byte_temp1.reset(sub_option, "u8", int)
@@ -81,22 +81,25 @@ class class_protocol(base_communicate):
         vel_x,vel_y,vel_z: cm/s 匿名坐标系
         yaw: deg/s 顺时针为正
         """
-        data = struct.pack("<hhhh", int(vel_x), int(vel_y), int(vel_z), int(-yaw))
+        data = struct.pack("<hhhh", int(vel_x), int(
+            vel_y), int(vel_z), int(-yaw))
         self.send_command(0x03, data)  # 帧结尾
 
     def start_beep(self):
         """
         蜂鸣器控制
         """
-        self.send_data_to_fc(self.data_to_fc.start_beep_data.bytes, self.option.beep)
+        self.send_data_to_fc(
+            self.data_to_fc.start_beep_data.bytes, self.option.beep)
 
     def stop_beep(self):
         """
         蜂鸣器控制
         """
-        self.send_data_to_fc(self.data_to_fc.stop_beep_data.bytes, self.option.beep)
+        self.send_data_to_fc(
+            self.data_to_fc.stop_beep_data.bytes, self.option.beep)
 
-    #####################################IMU直接转发#######################################
+    ##################################### IMU直接转发#######################################
 
     def _send_imu_command_frame(self, CID: int, CMD0: int, CMD1: int, CMD_data=b""):
         self.byte_temp1.reset(CID, "u8", int)
@@ -108,10 +111,10 @@ class class_protocol(base_communicate):
         if len(bytes_data) > 8:
             raise Exception("CMD_data length is too long")
         data_to_send = (
-                self.byte_temp1.bytes
-                + self.byte_temp2.bytes
-                + self.byte_temp3.bytes
-                + bytes_data
+            self.byte_temp1.bytes
+            + self.byte_temp2.bytes
+            + self.byte_temp3.bytes
+            + bytes_data
         )
         self.send_data_to_fc(data_to_send, 0x02, need_ack=True)
         # cid = 0x10, cmd0 = 0x00 cmd1 = 0x04 -> hovering
@@ -131,14 +134,20 @@ class class_protocol(base_communicate):
         self._send_imu_command_frame(0x01, 0x01, 0x01, self.byte_temp1.bytes)
 
     def unlock(self):
+        """
+        解锁
+        """
         self._send_imu_command_frame(0x10, 0x00, 0x01)
 
     def lock(self):
+        """
+        上锁
+        """
         self._send_imu_command_frame(0x10, 0x00, 0x02)
 
     def takeoff(self, target_height):
         """
-        一键起飞 (除姿态模式外, 随时有效)
+        一键起飞(除姿态模式外, 随时有效)
         目标高度: 0-500 cm, 0为默认高度
         """
         self.byte_temp1.reset(target_height, "u16", int)
@@ -146,13 +155,13 @@ class class_protocol(base_communicate):
 
     def land(self):
         """
-        一键降落 (除姿态模式外, 随时有效)
+        一键降落(除姿态模式外, 随时有效)
         """
         self._send_imu_command_frame(0x10, 0x00, 0x06)
 
     def stabilize(self):
         """
-        恢复定点悬停, 将终止正在进行的所有控制 (随时有效)
+        恢复定点悬停, 将终止正在进行的所有控制(随时有效)
         """
         self._send_imu_command_frame(0x10, 0x00, 0x04)
 
