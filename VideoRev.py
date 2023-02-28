@@ -8,6 +8,11 @@ import cv2
 import numpy
 from Logger import Exception_Catcher, logger
 
+"""
+基本流程:
+opencv抓取图片, 网络广播, 接收端接收, opencv显示
+"""
+
 
 class fps_counter:
     def __init__(self, max_sample=40) -> None:
@@ -162,7 +167,7 @@ class RT_Camera_Client:
         last_res = None
         while 1:
             # wait for header
-            time.sleep(0.01)  # reduce CPU usage
+            time.sleep(0.01)  # reduce CPU usage max: 100fps
             try:
                 self.image = self.capture_frame()
                 if self.image is None:
