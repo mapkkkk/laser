@@ -52,7 +52,7 @@ def visualOpen(cap):
             a_total_x, a_total_y, a_total_k = lines_process(lines)
             # 显示一下原始图像
             cv.imshow("Webcam", image)
-            key_pressed = cv.waitKey(100)
+            # key_pressed = cv.waitKey(100)
             error_y = a_total_y - 240
     return error_y, a_total_x
 
@@ -83,7 +83,8 @@ def basic_process(img):
     cv.imshow('edge', img_edge)
 
     # 霍夫直线变换
-    lines = cv.HoughLinesP(img_edge, rho, theta, threshold, min_line_len, max_line_gap)
+    lines = cv.HoughLinesP(img_edge, rho, theta,
+                           threshold, min_line_len, max_line_gap)
 
     # 返回直线数据，之后再处理
     return lines
@@ -101,7 +102,7 @@ def lines_process(lines):
         for line in lines:
             for x1, y1, x2, y2 in line:
                 k = 10
-                if x2 - x1 is not 0:
+                if x2 - x1 != 0:
                     k = (y2 - y1) / (x2 - x1)
                 if 0.3 > k > -0.3:
                     total_y += (y1 + y2) / 2
@@ -118,7 +119,7 @@ def lines_process(lines):
     return a_total_x, a_total_y, a_total_k
 
 
-##############神经网络#################
+# 神经网络
 # sigmoid函数
 def sigmoid(x):
     return 1.0 / (1 + np.exp(-x))
@@ -158,10 +159,12 @@ class FastestDetOnnx:
         """
         import onnxruntime
 
-        path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models")
+        path = os.path.join(os.path.dirname(
+            os.path.abspath(__file__)), "models")
         path_names = os.path.join(path, "FastestDet.names")  # 识别类别
         path_onnx = os.path.join(path, "FastestDet.onnx")
-        self.classes = list(map(lambda x: x.strip(), open(path_names, "r").readlines()))
+        self.classes = list(
+            map(lambda x: x.strip(), open(path_names, "r").readlines()))
         self.inpWidth = 500
         self.inpHeight = 500
         self.session = onnxruntime.InferenceSession(path_onnx)
@@ -173,9 +176,10 @@ class FastestDetOnnx:
         """
         前处理, 对输入图像进行归一化
         """
-        output = cv.resize(src_img, (size[0], size[1]), interpolation=cv.INTER_AREA)
+        output = cv.resize(
+            src_img, (size[0], size[1]), interpolation=cv.INTER_AREA)
         output = output.transpose(2, 0, 1)
-        output = output.reshape((1, 3, size[1], size[0])) / 255
+        output = output.reshape((1, 3, size[1], size[0]))
 
         return output.astype("float32")
 
@@ -206,8 +210,10 @@ class FastestDetOnnx:
                     # 检测框归一化后中心点
                     box_cx = (w + x_offset) / feature_width
                     box_cy = (h + y_offset) / feature_height
-                    x1, y1 = box_cx - 0.5 * box_width, box_cy - 0.5 * box_height
-                    x2, y2 = box_cx + 0.5 * box_width, box_cy + 0.5 * box_height
+                    x1, y1 = (box_cx - 0.5 * box_width,
+                              box_cy - 0.5 * box_height)
+                    x2, y2 = (box_cx + 0.5 * box_width,
+                              box_cy + 0.5 * box_height)
                     x1, y1, x2, y2 = (
                         int(x1 * frameWidth),
                         int(y1 * frameHeight),
@@ -247,14 +253,14 @@ def onnxruntime_init():
         # 读取图片
         cam = cv.VideoCapture(0)
         # 模型输入的宽高
-        input_width, input_height = 500, 500
+        # input_width, input_height = 500, 500
         # 加载模型
         fd = FastestDetOnnx(drawOutput=False)
         # 目标检测
         while True:
             img = cam.read()[1]
             start = time.perf_counter()
-            ret = fd.detect(img)
+            # ret = fd.detect(img)
             end = time.perf_counter()
             time_ = (end - start) * 1000.0
             print("forward time:%fms" % time_)
@@ -267,7 +273,7 @@ def onnxruntime_init():
 def onnxruntime(cam, fd):
     img = cam.read()[1]
     start = time.perf_counter()
-    ret = fd.detect(img)
+    # ret = fd.detect(img)
     end = time.perf_counter()
     time_ = (end - start) * 1000.0
     print("forward time:%fms" % time_)

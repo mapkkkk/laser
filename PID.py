@@ -1,14 +1,13 @@
 # coding=UTF-8
 import time
-
-'''
+"""
 PID控制
 这个类写的好，直接拿来爽用
 2022.11.6 
 认为需要加入一个multi量作为系数使用, 在输出之前直接处理完就好
 还需要一个类型定义，直接转换为对应的数据类型
 要再写一个类还是就这个样子呢。。。
-'''
+"""
 
 
 class PID:
@@ -28,7 +27,8 @@ class PID:
         self.Kd = D
 
         self.sample_time = 0.00
-        self.current_time = current_time if current_time is not None else time.time()
+        self.current_time = current_time if current_time is not None else time.time(
+        )
         self.last_time = self.current_time
         # 理解为归零
         self.clear()
@@ -74,7 +74,8 @@ class PID:
         # 然后这个feedback_value就是新的误差值
         error = self.SetPoint - feedback_value
         # 时间上的更新
-        self.current_time = current_time if current_time is not None else time.time()
+        self.current_time = current_time if current_time is not None else time.time(
+        )
         # 时间的间隔量
         delta_time = self.current_time - self.last_time
         # 微分将要用到的误差的变化量

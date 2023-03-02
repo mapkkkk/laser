@@ -1,27 +1,30 @@
-from Protocol import class_protocol
-from Logger import logger
 import time
 import threading
-'''
-关于类的继承：
-继承的类中的一切内容均直接可用
-在继承类中写的内容一般是原类的拓展内容，基本开发顺序仍然是底层往上
-在类中实例化的其他类永远可用，这个类往任何一个地方传都是成立的
-并且补充一下python里的传参机制,变量一般是传地址,参量一般是传值
-所以建立好的类就理解为是一个完整的程序，可被任何过程接入然后调用
-不用考虑这个类传入是否会被初始化而失去其作用
-但是不建议在两个线程中同时调用同一个类的函数,问题是,还没查，感觉上不行
-'''
+from Logger import logger
+from Protocol import class_protocol
+# """
+# 关于类的继承：
+# 继承的类中的一切内容均直接可用
+# 在继承类中写的内容一般是原类的拓展内容，基本开发顺序仍然是底层往上
+# 在类中实例化的其他类永远可用，这个类往任何一个地方传都是成立的
+# 并且补充一下python里的传参机制,变量一般是传地址,参量一般是传值
+# 所以建立好的类就理解为是一个完整的程序，可被任何过程接入然后调用
+# 不用考虑这个类传入是否会被初始化而失去其作用
+# 但是不建议在两个线程中同时调用同一个类的函数,问题是,还没查，感觉上不行
+# """
 
 
 class class_application(class_protocol):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.realtime_control_thread = None
-        self.realtime_control_data_in_xyzYaw = [0, 0, 0, 0]
+        self.realtime_control_data_in_xyzyaw = [0, 0, 0, 0]
         self.realtime_control_running = False
 
     def service_start_local(self):
+        """
+        start service
+        """
         self.start_listen_serial('/dev/ttyAMA0')
 
     def wait_for_connection(self, timeout_s=-1) -> bool:
@@ -140,11 +143,11 @@ class class_application(class_protocol):
             self.realtime_control_thread.join()
             self._thread_list.remove(self.realtime_control_thread)
             self.realtime_control_thread = None
-        self.realtime_control_data_in_xyzYaw = [0, 0, 0, 0]
+        self.realtime_control_data_in_xyzyaw = [0, 0, 0, 0]
 
     def update_realtime_control(
-            self, vel_x: int = None, vel_y: int = None, vel_z: int = None, yaw: int = None
-    ) -> None:
+            self, vel_x: int = None, vel_y: int = None,
+            vel_z: int = None, yaw: int = None) -> None:
         """
         更新自动发送实时控制的目标值
         vel_x,vel_y,vel_z: cm/s 匿名坐标系

@@ -24,14 +24,9 @@ class Byte_Var:
     _byte_length = 0
     _multi = 1.0
     _signed = False
-    _var_type = None
-    name = None
 
     def __init__(self, ctype, data_type, value_multi=1.0, name=None):
         self.reset(0, ctype, data_type, value_multi)
-        self.name = name
-
-    def reset(self, init_value, ctype, py_data_type, value_multi=1.0, name=None):
         # 解析一下自己定的数据类型
         ctype_word_part = ctype[0]
         ctype_number_part = ctype[1:]
@@ -45,11 +40,33 @@ class Byte_Var:
             raise ValueError("Invalid ctype: {ctype}")
         if int(ctype_number_part) % 8 != 0:
             raise ValueError("Invalid ctype: {ctype}")
-        if py_data_type not in [int, float, bool]:
+        if data_type not in [int, float, bool]:
             raise ValueError("Invalid var_type: {py_data_type}")
 
         self._byte_length = int(int(ctype_number_part) // 8)
-        self._var_type = py_data_type
+        self._var_type = data_type
+        self._multi = value_multi
+        self.name = name
+
+    def reset(self, init_value, ctype, data_type, value_multi=1.0, name=None):
+        # 解析一下自己定的数据类型
+        ctype_word_part = ctype[0]
+        ctype_number_part = ctype[1:]
+
+        # 解析解析，判断是否是sign
+        if ctype_word_part.lower() == "u":
+            self._signed = False
+        elif ctype_word_part.lower() == "s":
+            self._signed = True
+        else:
+            raise ValueError("Invalid ctype: {ctype}")
+        if int(ctype_number_part) % 8 != 0:
+            raise ValueError("Invalid ctype: {ctype}")
+        if data_type not in [int, float, bool]:
+            raise ValueError("Invalid var_type: {py_data_type}")
+
+        self._byte_length = int(int(ctype_number_part) // 8)
+        self._var_type = data_type
         self._multi = value_multi
         self._value = self._var_type(init_value)
         self.name = name
@@ -112,13 +129,6 @@ class Byte_Var:
 
 # 选项结构体
 class class_option:
-    _takeoff = None
-    _land = None
-    _lock_unlock = None
-    _mode_change = None
-    _realtime_control = None
-    _program_control = None
-    _beep = None
 
     def __init__(self):
         self._lock_unlock = 0x01

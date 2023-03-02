@@ -6,21 +6,14 @@ import traceback
 from Serial import FC_Serial
 from Data import FC_State_Struct, FC_Settings_Struct
 from Logger import logger
-
-'''
-发送类
-用来实例化作为接收发送端
-2022.11.20
-这里的logger完全照搬（搞得好想其他不是照搬的一样）
-并且完全没有搞懂logger是干啥用的，大概是python的控制台组件。。。
-类在继承的时候没有新建一个类，而是加以改动，不会产生另一个实例
-
-TODO:
-1_ receive 
-2_ send 
-3_ decode
-4_ encode
-'''
+# '''
+# 发送类
+# 用来实例化作为接收发送端
+# 2022.11.20
+# 这里的logger完全照搬(搞得好想其他不是照搬的一样)
+# 并且完全没有搞懂logger是干啥用的, 大概是python的控制台组件。。。
+# 类在继承的时候没有新建一个类，而是加以改动，不会产生另一个实例
+# '''
 
 
 class base_communicate(object):
@@ -54,11 +47,11 @@ class base_communicate(object):
     # 接收子线程初始化
     # 在发送之前必须先设置这个监听，不然串口不会被定义
     def start_listen_serial(
-            self,
-            serial_port: str,
-            bit_rate: int = 500000,
-            print_state=True,
-            callback=None,
+        self,
+        serial_port: str,
+        bit_rate: int = 500000,
+        print_state=True,
+        callback=None,
     ):
         self._state_update_callback = callback
         self._print_state_flag = print_state
@@ -91,7 +84,8 @@ class base_communicate(object):
                         self._received_ack = data[0]
                         self._waiting_ack = False
             except Exception:
-                logger.error(f"[FC] listen serial exception: {traceback.format_exc()}")
+                logger.error(
+                    f"[FC] listen serial exception: {traceback.format_exc()}")
             if time.time() - last_heartbeat_time > 0.25:
                 self.send_data_to_fc(b"\x01", 0x00)  # 心跳包
                 last_heartbeat_time = time.time()
@@ -99,19 +93,24 @@ class base_communicate(object):
 
     # 标注一下：这里的发送还是得调用SerialClass里的FC_serial
     # 调用serial发送，发送函数
-    def send_data_to_fc(self, data: bytes, option: int, need_ack: bool = False, _ack_retry_count: int = None):
-        """将数据向飞控发送, 并等待应答, 一切操作都将由该函数发送, 因此重构到
-                其他通讯方式时只需重构该函数即可
+    def send_data_to_fc(self,
+                        data: bytes,
+                        option: int,
+                        need_ack: bool = False,
+                        _ack_retry_count: int = None):
+        """
+        将数据向飞控发送, 并等待应答, 一切操作都将由该函数发送, 因此重构到
+        其他通讯方式时只需重构该函数即可
 
-                Args:
-                    data (bytes): bytes类型的数据
-                    option (int): 选项, 对应飞控代码
-                    need_ack (bool, optional): 是否需要应答验证. Defaults to False.
-                    _ack_retry_count (int, optional): 应答超时时最大重发次数, 此处由函数自动递归设置, 请修改settings中的选项.
+        Args:
+            data (bytes): bytes类型的数据
+            option (int): 选项, 对应飞控代码
+            need_ack (bool, optional): 是否需要应答验证. Defaults to False.
+            _ack_retry_count (int, optional): 应答超时时最大重发次数, 此处由函数自动递归设置, 请修改settings中的选项.
 
-                Returns:
-                    bytes: 实际发送的数据帧
-                """
+        Returns:
+            bytes: 实际发送的数据帧
+        """
 
         if need_ack:
             if _ack_retry_count is None:
@@ -141,15 +140,13 @@ class base_communicate(object):
             while self._waiting_ack:
                 if time.time() - send_time > self.settings.wait_ack_timeout:
                     logger.warning("[FC] ACK timeout, retrying")
-                    return self.send_data_to_fc(
-                        data, option, need_ack, _ack_retry_count - 1
-                    )
+                    return self.send_data_to_fc(data, option, need_ack,
+                                                _ack_retry_count - 1)
                 time.sleep(0.001)
             if self._received_ack is None or self._received_ack != check_ack:
                 logger.warning("[FC] ACK not received or invalid, retrying")
-                return self.send_data_to_fc(
-                    data, option, need_ack, _ack_retry_count - 1
-                )
+                return self.send_data_to_fc(data, option, need_ack,
+                                            _ack_retry_count - 1)
         return sent
 
     # 退出函数
@@ -175,7 +172,8 @@ class base_communicate(object):
             if self._print_state_flag:
                 self._print_state()
         except Exception:
-            logger.error(f"[FC] Update state exception: {traceback.format_exc()}")
+            logger.error(
+                f"[FC] Update state exception: {traceback.format_exc()}")
 
     def _print_state(self):
         color_red = "\033[1;31m"
@@ -186,17 +184,13 @@ class base_communicate(object):
         PURPLE = "\033[1;35m"
         RESET = "\033[0m"
         text = ""
-        text += " ".join(
-            [
-                f"{YELLOW}{(var.name[0] + var.name[-1])}: "
-                f"{f'{color_green}√ ' if var.value else f'{color_red}x {RESET}'}"
-                if type(var.value) == bool
-                else (
-                    f"{YELLOW}{(var.name[0] + var.name[-1])}:{CYAN}{var.value:^7.02f}{RESET}"
-                    if type(var.value) == float
-                    else f"{YELLOW}{(var.name[0] + var.name[-1])}:{CYAN}{var.value:^4d}{RESET}"
-                )
-                for var in self.state.RECV_ORDER
-            ]
-        )
+        text += " ".join([
+            f"{YELLOW}{(var.name[0] + var.name[-1])}: "
+            f"{f'{color_green}√ ' if var.value else f'{color_red}x {RESET}'}"
+            if type(var.value) == bool else
+            (f"{YELLOW}{(var.name[0] + var.name[-1])}:{CYAN}{var.value:^7.02f}{RESET}"
+             if type(var.value) == float else
+             f"{YELLOW}{(var.name[0] + var.name[-1])}:{CYAN}{var.value:^4d}{RESET}"
+             ) for var in self.state.RECV_ORDER
+        ])
         print(f"\r {text}\r", end="")

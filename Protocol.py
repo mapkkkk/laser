@@ -6,7 +6,6 @@ from Base import base_communicate
 from Data import Data_To_FC
 from Data import Byte_Var
 from Logger import logger
-
 '''
 基本任务底层
 HZW
@@ -18,9 +17,7 @@ CMD转发(在飞控上也应该写好了相关的东西)
 
 
 class class_protocol(base_communicate):
-    option = None
     # 数据定义
-    data_to_fc = None
     HOLD_ALT_MODE = 1
     HOLD_POS_MODE = 2
     PROGRAM_MODE = 3
@@ -65,15 +62,20 @@ class class_protocol(base_communicate):
 
     ################################## 命令发送，经过MCU处理进行控制###################################
 
-    def send_command(self, sub_option: int, data: bytes = b"", need_ack=False) -> None:
+    def send_command(self,
+                     sub_option: int,
+                     data: bytes = b"",
+                     need_ack=False) -> None:
         self.byte_temp1.reset(sub_option, "u8", int)
-        self.send_data_to_fc(
-            self.byte_temp1.bytes + data, 0x01, need_ack=need_ack
-        )
+        self.send_data_to_fc(self.byte_temp1.bytes + data,
+                             0x01,
+                             need_ack=need_ack)
 
-    def send_realtime_control_data(
-            self, vel_x: int = 0, vel_y: int = 0, vel_z: int = 0, yaw: int = 0
-    ) -> None:
+    def send_realtime_control_data(self,
+                                   vel_x: int = 0,
+                                   vel_y: int = 0,
+                                   vel_z: int = 0,
+                                   yaw: int = 0) -> None:
         """
         发送实时控制帧, 仅在定点模式下有效(MODE=2), 切换模式前需要确保遥控器摇杆全部归中
         有熔断机制，超过一秒的帧间隔会导致熔断，再次获得数据后会恢复
@@ -81,27 +83,31 @@ class class_protocol(base_communicate):
         vel_x,vel_y,vel_z: cm/s 匿名坐标系
         yaw: deg/s 顺时针为正
         """
-        data = struct.pack("<hhhh", int(vel_x), int(
-            vel_y), int(vel_z), int(-yaw))
+        data = struct.pack("<hhhh", int(vel_x), int(vel_y), int(vel_z),
+                           int(-yaw))
         self.send_command(0x03, data)  # 帧结尾
 
     def start_beep(self):
         """
         蜂鸣器控制
         """
-        self.send_data_to_fc(
-            self.data_to_fc.start_beep_data.bytes, self.option.beep)
+        self.send_data_to_fc(self.data_to_fc.start_beep_data.bytes,
+                             self.option.beep)
 
     def stop_beep(self):
         """
         蜂鸣器控制
         """
-        self.send_data_to_fc(
-            self.data_to_fc.stop_beep_data.bytes, self.option.beep)
+        self.send_data_to_fc(self.data_to_fc.stop_beep_data.bytes,
+                             self.option.beep)
 
     ##################################### IMU直接转发#######################################
 
-    def _send_imu_command_frame(self, CID: int, CMD0: int, CMD1: int, CMD_data=b""):
+    def _send_imu_command_frame(self,
+                                CID: int,
+                                CMD0: int,
+                                CMD1: int,
+                                CMD_data=b""):
         self.byte_temp1.reset(CID, "u8", int)
         self.byte_temp2.reset(CMD0, "u8", int)
         self.byte_temp3.reset(CMD1, "u8", int)
@@ -110,12 +116,8 @@ class class_protocol(base_communicate):
             bytes_data += b"\x00" * (8 - len(bytes_data))
         if len(bytes_data) > 8:
             raise Exception("CMD_data length is too long")
-        data_to_send = (
-            self.byte_temp1.bytes
-            + self.byte_temp2.bytes
-            + self.byte_temp3.bytes
-            + bytes_data
-        )
+        data_to_send = (self.byte_temp1.bytes + self.byte_temp2.bytes +
+                        self.byte_temp3.bytes + bytes_data)
         self.send_data_to_fc(data_to_send, 0x02, need_ack=True)
         # cid = 0x10, cmd0 = 0x00 cmd1 = 0x04 -> hovering
         self.last_sended_command = (CID, CMD0, CMD1)
@@ -165,7 +167,8 @@ class class_protocol(base_communicate):
         """
         self._send_imu_command_frame(0x10, 0x00, 0x04)
 
-    def horizontal_move(self, distance: int, speed: int, direction: int) -> None:
+    def horizontal_move(self, distance: int, speed: int,
+                        direction: int) -> None:
         """
         水平移动: (程控模式下有效)
         移动距离:0-10000 cm
@@ -180,7 +183,8 @@ class class_protocol(base_communicate):
             0x10,
             0x02,
             0x03,
-            self.byte_temp1.bytes + self.byte_temp2.bytes + self.byte_temp3.bytes,
+            self.byte_temp1.bytes + self.byte_temp2.bytes +
+            self.byte_temp3.bytes,
         )
 
     def go_up(self, distance: int, speed: int) -> None:
@@ -193,8 +197,7 @@ class class_protocol(base_communicate):
         self.byte_temp1.reset(distance, "u16", int)
         self.byte_temp2.reset(speed, "u16", int)
         self._send_imu_command_frame(
-            0x10, 0x02, 0x01, self.byte_temp1.bytes + self.byte_temp2.bytes
-        )
+            0x10, 0x02, 0x01, self.byte_temp1.bytes + self.byte_temp2.bytes)
 
     def go_down(self, distance: int, speed: int) -> None:
         """
@@ -206,8 +209,7 @@ class class_protocol(base_communicate):
         self.byte_temp1.reset(distance, "u16", int)
         self.byte_temp2.reset(speed, "u16", int)
         self._send_imu_command_frame(
-            0x10, 0x02, 0x02, self.byte_temp1.bytes + self.byte_temp2.bytes
-        )
+            0x10, 0x02, 0x02, self.byte_temp1.bytes + self.byte_temp2.bytes)
 
     def turn_left(self, deg: int, speed: int) -> None:
         """
@@ -219,8 +221,7 @@ class class_protocol(base_communicate):
         self.byte_temp1.reset(deg, "u16", int)
         self.byte_temp2.reset(speed, "u16", int)
         self._send_imu_command_frame(
-            0x10, 0x02, 0x07, self.byte_temp1.bytes + self.byte_temp2.bytes
-        )
+            0x10, 0x02, 0x07, self.byte_temp1.bytes + self.byte_temp2.bytes)
 
     def turn_right(self, deg: int, speed: int) -> None:
         """
@@ -232,8 +233,7 @@ class class_protocol(base_communicate):
         self.byte_temp1.reset(deg, "u16", int)
         self.byte_temp2.reset(speed, "u16", int)
         self._send_imu_command_frame(
-            0x10, 0x02, 0x08, self.byte_temp1.bytes + self.byte_temp2.bytes
-        )
+            0x10, 0x02, 0x08, self.byte_temp1.bytes + self.byte_temp2.bytes)
 
     @property
     def last_command_done(self) -> bool:
