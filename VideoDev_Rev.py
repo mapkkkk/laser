@@ -9,7 +9,7 @@ class Camera_Connect_Object:
     def __init__(self, D_addr_port=["", 8880]):
         self.resolution = [640, 480]
         self.addr_port = D_addr_port
-        self.src = 888+15  # 双方确定传输帧数，（888）为校验值
+        self.src = 888 + 15  # 双方确定传输帧数，（888）为校验值
         self.interval = 0  # 图片播放时间间隔
         self.img_fps = 15  # 每秒传输多少帧数
 
