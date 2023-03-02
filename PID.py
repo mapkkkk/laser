@@ -5,7 +5,7 @@ import time
 PID控制
 这个类写的好，直接拿来爽用
 2022.11.6 
-认为需要加入一个multi量作为系数使用，在输出之前直接处理完就好
+认为需要加入一个multi量作为系数使用, 在输出之前直接处理完就好
 还需要一个类型定义，直接转换为对应的数据类型
 要再写一个类还是就这个样子呢。。。
 '''
@@ -16,7 +16,7 @@ class PID:
     def __init__(self, P=0.2, I=0.0, D=0.0, current_time=None):
 
         self.output = None
-        self.windup_guard = None
+        self.windup_guard = 10.0
         self.int_error = None
         self.SetPoint = None
         self.last_error = None
@@ -100,7 +100,8 @@ class PID:
             self.last_error = error
             # 输出，认为直接访问这个类里的输出量就可以丢给飞控用了
             # 认为需要三个PID：一个是y轴速度（水平平移），一个是x轴速度（控制与线的距离），最后一个是旋转量raw
-            self.output = self.PTerm + (self.Ki * self.ITerm) + (self.Kd * self.DTerm)
+            self.output = self.PTerm + \
+                (self.Ki * self.ITerm) + (self.Kd * self.DTerm)
 
     def setKp(self, proportional_gain):
         """Determines how aggressively the PID reacts to the current error with setting Proportional Gain"""
