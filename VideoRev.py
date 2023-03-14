@@ -102,7 +102,7 @@ class RT_Camera_Client:
         """
         Socket定义
         具体原理请参阅《python核心编程》
-
+        有失败风险,在执行的时候需要考虑这些问题,所以要用try
         """
         self.client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.client.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -280,7 +280,7 @@ if __name__ == "__main__":
     camera = RT_Camera_Client(
         IP_HOST="192.168.137.27",
         # IP="raspberrypi",
-        Port=6756,
+        Port=6756,  # 端口问题不用考虑
         Resolution=(800, 600),
         Fps=60,
         Paste_FPS=0,

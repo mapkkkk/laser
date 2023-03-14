@@ -1,5 +1,4 @@
 # coding=UTF-8
-import time
 import cv2 as cv
 from time import sleep
 
@@ -18,7 +17,7 @@ HZW
 '''
 # 定义串口
 # 这个串口是树莓派的串口TX&RX
-#
+# 这个串口性能更高,之前分配给蓝牙,现在就分给物理串口,蓝牙就报废了
 port = '/dev/ttyAMA0'
 
 # 实例化任务控制
