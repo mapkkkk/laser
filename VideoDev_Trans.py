@@ -53,7 +53,7 @@ def RT_Image(camera_object, client, D_addr):
             camera_object.img, camera_object.resolution)
         _, img_encode = cv2.imencode(
             '.jpg', camera_object.img, img_param)  # 按格式生成图片
-        img_code = numpy.array(img_encode)  # 转换成矩阵
+        img_code = numpy.array(img_encode)  # 转换成矩阵,按照矩阵的格式生成字符串传输
         camera_object.img_data = img_code.tostring()  # 生成相应的字符串
         try:
             # 按照相应的格式进行打包发送图片

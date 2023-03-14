@@ -278,3 +278,76 @@ def onnxruntime(cam, fd):
     time_ = (end - start) * 1000.0
     print("forward time:%fms" % time_)
     cv.imshow("img", img)
+
+
+class KCF_Tracker:  # OPENCV KCF Tracker
+    def __init__(self) -> None:
+        self.frame = None
+        self.selection = None
+        self.drag_start = None
+        self.track_window = None
+        self.track_start = False
+        cv.namedWindow("KCFTracker", cv.WINDOW_KEEPRATIO |
+                       cv.WINDOW_AUTOSIZE)
+        cv.setMouseCallback("KCFTracker", self.onmouse)
+
+    def onmouse(self, event, x, y, flags, param):
+        if event == cv.EVENT_LBUTTONDOWN:
+            self.drag_start = (x, y)
+            self.track_start = False
+        if self.drag_start:
+            xmin = min(x, self.drag_start[0])
+            ymin = min(y, self.drag_start[1])
+            xmax = max(x, self.drag_start[0])
+            ymax = max(y, self.drag_start[1])
+            self.selection = (xmin, ymin, xmax, ymax)
+        if event == cv.EVENT_LBUTTONUP:
+            self.drag_start = None
+            self.selection = None
+            self.track_window = (xmin, ymin, xmax - xmin, ymax - ymin)
+            if (
+                self.track_window
+                and self.track_window[2] > 0
+                and self.track_window[3] > 0
+            ):
+                self.track_start = True
+                self.tracker = cv.TrackerKCF_create()
+                self.tracker.init(self.frame, self.track_window)
+            else:
+                self.track_start = False
+                self.track_window = None
+                self.tracker = None
+
+    def process(self, frame):
+        self.frame = frame.copy()
+        if self.selection:
+            x0, y0, x1, y1 = self.selection
+            cv.rectangle(self.frame, (x0, y0), (x1, y1), (255, 0, 0), 2, 1)
+        self.track_ok = None
+        if self.track_start:
+            self.track_ok, bbox = self.tracker.update(frame)
+        if self.track_ok:
+            p1 = (int(bbox[0]), int(bbox[1]))
+            p2 = (int(bbox[0] + bbox[2]), int(bbox[1] + bbox[3]))
+            cv.rectangle(self.frame, p1, p2, (255, 0, 0), 2, 1)
+        elif not self.track_start:
+            cv.putText(
+                self.frame,
+                "No tracking target selected",
+                (0, 20),
+                cv.FONT_HERSHEY_SIMPLEX,
+                0.75,
+                (0, 0, 255),
+                2,
+            )
+        elif not self.track_ok:
+            cv.putText(
+                self.frame,
+                "Tracking failed",
+                (0, 20),
+                cv.FONT_HERSHEY_SIMPLEX,
+                0.75,
+                (0, 0, 255),
+                2,
+            )
+        cv.imshow("KCFTracker", self.frame)

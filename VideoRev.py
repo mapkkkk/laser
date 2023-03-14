@@ -11,10 +11,22 @@ from Logger import Exception_Catcher, logger
 """
 基本流程:
 opencv抓取图片, 网络广播, 接收端接收, opencv显示
+关于bytes到底是个啥:
+字符串和 bytes 存在着千丝万缕的联系，我们可以通过字符串来创建 bytes 对象，
+或者说将字符串转换成 bytes 对象。有以下三种方法可以达到这个目的：
+如果字符串的内容都是 ASCII 字符,那么直接在字符串前面添加b前缀就可以转换成 bytes;
+bytes 是一个类，调用它的构造方法，也就是 bytes()，可以将字符串按照指定的字符集转换成 bytes;
+如果不指定字符集,那么默认采用 UTF-8。
+字符串本身有一个 encode() 方法，该方法专门用来将字符串按照指定的字符集转换成对应的字节串;
+如果不指定字符集，那么默认采用 UTF-8。
 """
 
 
 class fps_counter:
+    """
+    帧率指示器
+    """
+
     def __init__(self, max_sample=40) -> None:
         self.t = time.time()
         self.max_sample = max_sample
@@ -69,7 +81,7 @@ class net_speed_counter:
 class RT_Camera_Client:
     def __init__(
         self,
-        IP,
+        IP_HOST,
         Port,
         Resolution=(640, 480),
         Fps=30,
@@ -77,7 +89,7 @@ class RT_Camera_Client:
         Paste_FPS=False,
         Terminate_server=False,
     ):
-        self.addr_port = (IP, Port)
+        self.addr = (IP_HOST, Port)
         self.resolution = Resolution
         self.fps = Fps
         self.quality = Quality
@@ -86,15 +98,17 @@ class RT_Camera_Client:
         self.terminate = Terminate_server
 
     @Exception_Catcher
-    def Set_socket(self):
+    def Socket_Connect(self):
+        """
+        Socket定义
+        具体原理请参阅《python核心编程》
+
+        """
         self.client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.client.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-
-    @Exception_Catcher
-    def Socket_Connect(self):
-        self.Set_socket()
-        self.client.connect(self.addr_port)
-        logger.info("IP is %s:%d" % (self.addr_port[0], self.addr_port[1]))
+        # 以下完成socket连接
+        self.client.connect(self.addr)
+        logger.info("IP is %s:%d" % (self.addr[0], self.addr[1]))
         self.client.settimeout(self.timeout)
         self.Init_Reciver()
 
@@ -120,7 +134,7 @@ class RT_Camera_Client:
         if self.terminate:
             logger.info("Terminate server")
             return
-        self.ip = self.addr_port[0]
+        self.ip = self.addr[0]
         logger.info("%s is ready" % self.ip)
         self.packet_header = b"\x12\x23\x34\x45\x00\xff"
         self.header_len = len(self.packet_header)
@@ -130,6 +144,7 @@ class RT_Camera_Client:
     @Exception_Catcher
     def capture_frame(self):
         # 接收图像数据
+        # 此处为前置的"握手"阶段
         counter = 0
         self.header_temp_buf = b""
         self.header_temp_buf += self.client.recv(self.header_len)
@@ -145,17 +160,19 @@ class RT_Camera_Client:
             return None
         self.netC.update(data_size * 8)
         try:
-            self.buf = b""  # 代表bytes类型
+            self.buf = b""  # 代表bytes类型,看不懂去看文件前面的说明
             counter = 0
+            # 一直接收数据,直到接收到目标的数据量为止,目标的数据量由前置的沟通确定
             while len(self.buf) < data_size:
-                self.buf += self.client.recv(data_size)
+                self.buf += self.client.recv(data_size)  # bytes类型直接相加
                 counter += 1
                 if counter > 1000000:
                     raise Exception("Waiting for image timeout")
             # self.buf=self.buf[:data_size]
-            data = numpy.frombuffer(self.buf, dtype="uint8")
-            image = cv2.imdecode(data, 1)
-            self.fps.update()
+            # 由于先前在发送的时候用的是numpy矩阵转字符串，所以现在要转回来
+            data = numpy.frombuffer(self.buf, dtype="uint8")    # 应该是将字符串转换回矩阵
+            image = cv2.imdecode(data, 1)   # 矩阵按编码重新转换回图片
+            self.fps.update()   # 更新fps
             return image
         except Exception as e:
             logger.error(f"Error: {e}")
@@ -163,6 +180,9 @@ class RT_Camera_Client:
 
     @Exception_Catcher
     def RT_Image_Recv(self):
+        """
+        还能咋样,有了图片就一切都好说了嘛
+        """
         blk = None
         last_res = None
         while 1:
@@ -247,79 +267,6 @@ class RT_Camera_Client:
                     time.sleep(0.1)
 
 
-class KCF_Tracker:  # OPENCV KCF Tracker
-    def __init__(self) -> None:
-        self.frame = None
-        self.selection = None
-        self.drag_start = None
-        self.track_window = None
-        self.track_start = False
-        cv2.namedWindow("KCFTracker", cv2.WINDOW_KEEPRATIO |
-                        cv2.WINDOW_AUTOSIZE)
-        cv2.setMouseCallback("KCFTracker", self.onmouse)
-
-    def onmouse(self, event, x, y, flags, param):
-        if event == cv2.EVENT_LBUTTONDOWN:
-            self.drag_start = (x, y)
-            self.track_start = False
-        if self.drag_start:
-            xmin = min(x, self.drag_start[0])
-            ymin = min(y, self.drag_start[1])
-            xmax = max(x, self.drag_start[0])
-            ymax = max(y, self.drag_start[1])
-            self.selection = (xmin, ymin, xmax, ymax)
-        if event == cv2.EVENT_LBUTTONUP:
-            self.drag_start = None
-            self.selection = None
-            self.track_window = (xmin, ymin, xmax - xmin, ymax - ymin)
-            if (
-                self.track_window
-                and self.track_window[2] > 0
-                and self.track_window[3] > 0
-            ):
-                self.track_start = True
-                self.tracker = cv2.TrackerKCF_create()
-                self.tracker.init(self.frame, self.track_window)
-            else:
-                self.track_start = False
-                self.track_window = None
-                self.tracker = None
-
-    def process(self, frame):
-        self.frame = frame.copy()
-        if self.selection:
-            x0, y0, x1, y1 = self.selection
-            cv2.rectangle(self.frame, (x0, y0), (x1, y1), (255, 0, 0), 2, 1)
-        self.track_ok = None
-        if self.track_start:
-            self.track_ok, bbox = self.tracker.update(frame)
-        if self.track_ok:
-            p1 = (int(bbox[0]), int(bbox[1]))
-            p2 = (int(bbox[0] + bbox[2]), int(bbox[1] + bbox[3]))
-            cv2.rectangle(self.frame, p1, p2, (255, 0, 0), 2, 1)
-        elif not self.track_start:
-            cv2.putText(
-                self.frame,
-                "No tracking target selected",
-                (0, 20),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.75,
-                (0, 0, 255),
-                2,
-            )
-        elif not self.track_ok:
-            cv2.putText(
-                self.frame,
-                "Tracking failed",
-                (0, 20),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.75,
-                (0, 0, 255),
-                2,
-            )
-        cv2.imshow("KCFTracker", self.frame)
-
-
 """
 帧率组合:
 640x360@30
@@ -331,7 +278,7 @@ class KCF_Tracker:  # OPENCV KCF Tracker
 
 if __name__ == "__main__":
     camera = RT_Camera_Client(
-        IP="192.168.137.27",
+        IP_HOST="192.168.137.27",
         # IP="raspberrypi",
         Port=6756,
         Resolution=(800, 600),
