@@ -1,4 +1,4 @@
-from Protocol import class_protocol
+from ProtocolMCU.Protocol import class_protocol
 from PID import PID
 from time import sleep
 import threading
@@ -11,13 +11,13 @@ class Mission:
         self.cam = camera
         self.inital_yaw = self.fc.state.yaw.value
 
-        ########## PID##########
+        ########## PID ##########
         self.height_pid = PID(1.2, 0.5, 0.001)
         self.height_pid.SetPoint = 140  # 定高140
         self.pos_y_pid = PID(1.2, 0.5, 0.001)
         self.pos_x_pid = PID(1.2, 0.5, 0.001)
 
-        ######### FLAGS#########
+        ######### FLAGS #########
         self.keep_height_flag = False
         self.running_flag = False
         self.thread_list = []
@@ -30,7 +30,7 @@ class Mission:
     def run(self):
         fc = self.fc
         cam = self.cam
-        ########## init_value###########
+        ########## init_value ###########
         self.running_flag = True
         self.thread_list.append(
             threading.Thread(target=self.keep_height_task,

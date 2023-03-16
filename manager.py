@@ -1,9 +1,9 @@
 # coding=UTF-8
 import cv2 as cv
 from time import sleep
-from Base import base_communicate
-from Application import class_application
-from Protocol import class_protocol
+from ProtocolMCU.Base import base_communicate
+from ProtocolMCU.Application import class_application
+from ProtocolMCU.Protocol import class_protocol
 from PID import PID
 from ImgProcess import init_cap
 from ImgProcess import visualOpen
@@ -54,7 +54,7 @@ except:
 
 logger.info("[MANAGER] Self-Checking Passed")
 ###################### 开始任务 ####################
-logger.info(f"[MANAGER] Target Mission: {target_mission}")
+logger.info("[MANAGER] Target Mission: 1")
 
 mission = None
 # 本地模式请务必设置目标任务

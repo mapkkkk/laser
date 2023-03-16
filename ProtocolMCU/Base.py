@@ -3,7 +3,7 @@ import threading
 import time
 import traceback
 
-from Serial import FC_Serial
+from ProtocolMCU.Serial import FC_Serial
 from Data import FC_State_Struct, FC_Settings_Struct
 from Logger import logger
 # '''

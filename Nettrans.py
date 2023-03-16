@@ -12,7 +12,7 @@
 import socket
 import sys
 import time
-from Application import class_application
+from ProtocolMCU.Application import class_application
 from Logger import logger
 from threading import Event, Thread
 from multiprocessing.managers import BaseManager, EventProxy, ListProxy

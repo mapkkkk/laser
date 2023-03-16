@@ -1,7 +1,7 @@
 import time
 import threading
 from Logger import logger
-from Protocol import class_protocol
+from ProtocolMCU.Protocol import class_protocol
 # """
 # 关于类的继承：
 # 继承的类中的一切内容均直接可用
