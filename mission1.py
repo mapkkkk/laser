@@ -11,13 +11,13 @@ class Mission:
         self.cam = camera
         self.inital_yaw = self.fc.state.yaw.value
 
-        ##########PID##########
+        ########## PID##########
         self.height_pid = PID(1.2, 0.5, 0.001)
         self.height_pid.SetPoint = 140  # 定高140
         self.pos_y_pid = PID(1.2, 0.5, 0.001)
         self.pos_x_pid = PID(1.2, 0.5, 0.001)
 
-        #########FLAGS#########
+        ######### FLAGS#########
         self.keep_height_flag = False
         self.running_flag = False
         self.thread_list = []
@@ -30,10 +30,11 @@ class Mission:
     def run(self):
         fc = self.fc
         cam = self.cam
-        ##########init_value###########
+        ########## init_value###########
         self.running_flag = True
         self.thread_list.append(
-            threading.Thread(target=self.keep_height_task, daemon=True)  # 在添加到列表的时候就已经完成定义了
+            threading.Thread(target=self.keep_height_task,
+                             daemon=True)  # 在添加到列表的时候就已经完成定义了
         )
 
     def keep_height_task(self):

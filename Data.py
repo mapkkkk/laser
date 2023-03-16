@@ -6,6 +6,7 @@
 import struct
 
 
+# This class is used to store the settings for the FC_Main_Window class.
 class FC_Settings_Struct:
     wait_ack_timeout = 0.1  # 应答帧超时时间
     wait_sending_timeout = 0.2  # 发送等待超时时间
@@ -14,6 +15,7 @@ class FC_Settings_Struct:
     auto_change_mode = True  # 是否自动切换飞控模式以匹配目标动作
 
 
+# It's a class that allows you to store a byte value in a variable
 class Byte_Var:
     """
     这部分定义发送数据格式,实现int向s16u16之类的转换
