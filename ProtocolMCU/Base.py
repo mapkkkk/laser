@@ -4,7 +4,7 @@ import time
 import traceback
 
 from ProtocolMCU.Serial import FC_Serial
-from Data import FC_State_Struct, FC_Settings_Struct
+from ProtocolMCU.Data import FC_State_Struct, FC_Settings_Struct
 from Logger import logger
 # '''
 # 发送类
@@ -157,6 +157,11 @@ class base_communicate(object):
 
     # 更新飞机状态
     def _update_state(self, recv_byte):
+        """
+        It updates the state of the drone.
+
+        :param recv_byte: The byte array received from the flight controller
+        """
         try:
             # index = 0
             # for var in self.state.RECV_ORDER:
@@ -176,6 +181,9 @@ class base_communicate(object):
                 f"[FC] Update state exception: {traceback.format_exc()}")
 
     def _print_state(self):
+        """
+        > It prints the state of the robot in a nice format
+        """
         color_red = "\033[1;31m"
         color_green = "\033[1;32m"
         YELLOW = "\033[1;33m"

@@ -273,7 +273,7 @@ def onnxruntime_init():
 def onnxruntime(cam, fd):
     img = cam.read()[1]
     start = time.perf_counter()
-    # ret = fd.detect(img)
+    ret = fd.detect(img)
     end = time.perf_counter()
     time_ = (end - start) * 1000.0
     print("forward time:%fms" % time_)

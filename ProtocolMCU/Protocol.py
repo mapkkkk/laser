@@ -1,10 +1,10 @@
 # coding=UTF-8
 import struct
 import time
-from Data import class_option
+from ProtocolMCU.Data import class_option
 from ProtocolMCU.Base import base_communicate
-from Data import Data_To_FC
-from Data import Byte_Var
+from ProtocolMCU.Data import Data_To_FC
+from ProtocolMCU.Data import Byte_Var
 from Logger import logger
 '''
 基本任务底层
@@ -234,6 +234,25 @@ class class_protocol(base_communicate):
         self.byte_temp2.reset(speed, "u16", int)
         self._send_imu_command_frame(
             0x10, 0x02, 0x08, self.byte_temp1.bytes + self.byte_temp2.bytes)
+
+    def set_yaw(self, yaw: int, speed: int) -> None:
+        """
+        设置偏航角: (程控模式下有效)
+        偏航角:-180-180 度
+        偏航速度:5-90 deg/s
+        """
+        self._action_log("set yaw", f"{yaw}deg, {speed}deg/s")
+        current_yaw = self.state.yaw.value
+        if yaw < current_yaw:
+            left_turn_deg = abs(current_yaw - yaw)
+            right_turn_deg = abs(360 - left_turn_deg)
+        else:
+            right_turn_deg = abs(current_yaw - yaw)
+            left_turn_deg = abs(360 - right_turn_deg)
+        if left_turn_deg < right_turn_deg:
+            self.turn_left(left_turn_deg, speed)
+        else:
+            self.turn_right(right_turn_deg, speed)
 
     @property
     def last_command_done(self) -> bool:

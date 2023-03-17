@@ -107,6 +107,13 @@ class FC_Serial:
         return False
 
     def write(self, data: bytes):
+        """
+        The function takes a byte array as input, and then sends it to the serial port
+
+        :param data: The data to be sent
+        :type data: bytes
+        :return: The data that was sent.
+        """
         data = copy(data)
         if isinstance(data, list):
             data = bytes(data)

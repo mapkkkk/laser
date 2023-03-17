@@ -5,8 +5,9 @@ from ProtocolMCU.Base import base_communicate
 from ProtocolMCU.Application import class_application
 from ProtocolMCU.Protocol import class_protocol
 from PID import PID
-from ImgProcess import init_cap
-from ImgProcess import visualOpen
+from Vision.ImgProcess import init_cap
+from Vision.ImgProcess import visualOpen
+from RadarDriver.RadarDriver import LD_Radar
 from Logger import logger
 import os
 import sys
@@ -48,17 +49,25 @@ try:
     assert cam.isOpened()
 except:
     logger.warning("[MANAGER] Camera Opening Failed")
-    if fc.event.key_short.is_set():
-        fc.quit()
-        self_reboot()
+
+# 尝试初始化雷达
+try:
+    radar = LD_Radar()
+    radar.start(
+        "/dev/serial/by-id/usb-Silicon_Labs_CP2102_USB_to_UART_Bridge_Controller_0001-if00-port0",
+        "LD06",
+    )
+except:
+    logger.warning("[MANAGER] Radar Connecting Failed")
 
 logger.info("[MANAGER] Self-Checking Passed")
 ###################### 开始任务 ####################
 logger.info("[MANAGER] Target Mission: 1")
 
-mission = None
 # 本地模式请务必设置目标任务
+mission = None
 target_mission = 1
+
 try:
     if target_mission == None:
         logger.info("[MANAGER] No Target Mission Set")
@@ -77,7 +86,7 @@ finally:
     if fc.state.unlock.value:
         logger.warning("[MANAGER] Auto Landing")
         fc.set_flight_mode(fc.PROGRAM_MODE)
-        fc.stablize()
+        fc.stabilize()
         fc.land()
         ret = fc.wait_for_lock()
         if not ret:

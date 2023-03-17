@@ -1,6 +1,6 @@
 import threading
 import time
-from re import I
+# from re import I
 
 import cv2
 import numpy as np
@@ -11,6 +11,7 @@ from Radar import radar_resolve_rt_pose
 from RadarResolver import Map_360, Point_2D, Radar_Package, resolve_radar_data
 
 
+# > This class is used to create a radar object that can be used to plot radar data
 class LD_Radar(object):
     def __init__(self):
         self.running = False
@@ -68,6 +69,9 @@ class LD_Radar(object):
         logger.info("[RADAR] Stopped all threads")
 
     def _read_serial_task(self):
+        """
+        It reads the serial data from the radar and updates the map.
+        """
         reading_flag = False
         start_bit = b"\x54\x2C"
         package_length = 45
@@ -159,6 +163,10 @@ class LD_Radar(object):
                 time.sleep(0.5)
 
     def _init_radar_map(self):
+        """
+        It creates a radar map image, draws the axes and circles on it, and sets up a mouse callback
+        function to display the radar map
+        """
         self._radar_map_img = np.zeros((600, 600, 3), dtype=np.uint8)
         a = np.sqrt(2) * 600
         b = (a - 600) / 2
@@ -182,6 +190,15 @@ class LD_Radar(object):
         )
 
     def _show_radar_map_on_mouse(self, event, x, y, flags, param):
+        """
+        *|CURSOR_MARCADOR|*
+
+        :param event: The event that happened
+        :param x: x coordinate of the mouse event
+        :param y: The y-coordinate of the mouse event
+        :param flags: 
+        :param param: the parameter you passed to cv2.setMouseCallback()
+        """
         if event == cv2.EVENT_MOUSEWHEEL:
             if flags > 0:
                 self.__radar_map_img_scale *= 1.1

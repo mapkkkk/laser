@@ -428,8 +428,9 @@ class Map_360(object):
         return self.__str__()
 
 
+# 单文件调试
 if __name__ == "__main__":
-    from ._Test_Driver import TEST_DATA
+    from TestRadarDriver import TEST_DATA
 
     map_ = Map_360()
     pack = resolve_radar_data(TEST_DATA)

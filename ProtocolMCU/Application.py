@@ -107,10 +107,10 @@ class class_application(class_protocol):
                 continue
             if paused:  # 取消暂停时先清空数据避免失控
                 paused = False
-                self._realtime_control_data_in_xyzYaw = [0, 0, 0, 0]
+                self.realtime_control_data_in_xyzyaw = [0, 0, 0, 0]
             try:
                 self.send_realtime_control_data(
-                    *self._realtime_control_data_in_xyzYaw)
+                    *self.realtime_control_data_in_xyzyaw)
             except Exception as e:
                 logger.warning(f"[FC] realtime control task error: {e}")
         logger.info("[FC] realtime control task stopped")
@@ -138,6 +138,7 @@ class class_application(class_protocol):
         """
         停止自动发送实时控制
         """
+        self.realtime_control_data_in_xyzyaw = [0, 0, 0, 0] # 优先恢复静止
         self.realtime_control_running = False
         if self.realtime_control_thread:
             self.realtime_control_thread.join()
@@ -157,4 +158,4 @@ class class_application(class_protocol):
         """
         for n, target in enumerate([vel_x, vel_y, vel_z, yaw]):
             if target is not None:
-                self._realtime_control_data_in_xyzYaw[n] = target
+                self.realtime_control_data_in_xyzyaw[n] = target
