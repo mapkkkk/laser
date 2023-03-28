@@ -3,7 +3,8 @@ import cv2 as cv
 import numpy as np
 import os
 import time
-
+from typing import List, Optional, Tuple, Union
+from pyzbar import pyzbar
 '''
 图像处理主程序
 python储存图片的方式是按照行X列的方式的,例如720p的图就是720X1080
@@ -16,45 +17,136 @@ threshold = 80
 min_line_len = 85
 max_line_gap = 5
 
-
-# 摄像头初始化
-def init_cap():
-    cap = cv.VideoCapture(0)
-    cap.set(cv.CAP_PROP_FRAME_HEIGHT, 480)
-    cap.set(cv.CAP_PROP_FRAME_WIDTH, 640)
-    cap.set(cv.CAP_PROP_BRIGHTNESS, 130)  # 亮度 130
-    fourcc = cv.VideoWriter_fourcc('M', 'J', 'P', 'G')
-    cap.set(cv.CAP_PROP_FOURCC, fourcc)
-    cap.set(cv.CAP_PROP_FPS, 30)
-    cap.open(0)
-    return cap
+_DEBUG = False
 
 
-# 视觉函数
-def visualOpen(cap):
-    a_total_x = 0
-    error_y = 0
-    # 一定要注意这里的写法，不然会运行不了
-    print('opened')
-    if cap.isOpened():
-        res, frame = cap.read()
-        if res:
-            # 进到图像处理，返回直线的数据，理想情况下只有一条线
-            print('frame')
-            image = cv.rotate(frame, cv.ROTATE_180)
-            lines = basic_process(image)
-            # 画在屏幕上显示看看
-            if lines is not None:
-                for line in lines:
-                    for x1, y1, x2, y2 in line:
-                        cv.line(image, (x1, y1), (x2, y2), (0, 255, 0), 3)
+def get_ROI(
+    img,
+    ROI: Tuple[Union[int, float]],
+) -> np.ndarray:
+    """
+    获取兴趣区
+    ROI: 若<=1则视为相对图像尺寸的比例值
+    """
+    x, y, w, h = ROI
+    if (x + y + w + h) <= 4:
+        x = int(x * img.shape[1])
+        y = int(y * img.shape[0])
+        w = int(w * img.shape[1])
+        h = int(h * img.shape[0])
+    return img[y: y + h, x: x + w]
 
-            a_total_x, a_total_y, a_total_k = lines_process(lines)
-            # 显示一下原始图像
-            cv.imshow("Webcam", image)
-            # key_pressed = cv.waitKey(100)
-            error_y = a_total_y - 240
-    return error_y, a_total_x
+
+def rotate_img(image, angle, fill_color=(0, 0, 0)):
+    """
+    任意角度旋转图片
+    angle: 旋转角度，顺时针方向, 角度制
+    fill_color: 填充颜色
+    """
+    (h, w) = image.shape[:2]
+    (cX, cY) = (w // 2, h // 2)
+    M = cv.getRotationMatrix2D((cX, cY), -angle, 1.0)
+    cos = np.abs(M[0, 0])
+    sin = np.abs(M[0, 1])
+    nW = int((h * sin) + (w * cos))
+    nH = int((h * cos) + (w * sin))
+    M[0, 2] += (nW / 2) - cX
+    M[1, 2] += (nH / 2) - cY
+    return cv.warpAffine(image, M, (nW, nH), borderValue=fill_color)
+
+
+def set_cam_autowb(cam, enable=True, manual_temp=5500):
+    """
+    设置摄像头自动白平衡
+    enable: 是否启用自动白平衡
+    manual_temp: 手动模式下的色温
+    """
+    cam.set(cv.CAP_PROP_AUTO_WB, int(enable))
+    if not enable:
+        cam.set(cv.CAP_PROP_WB_TEMPERATURE, manual_temp)
+
+
+def set_cam_autoexp(cam, enable=True, manual_exposure=0.25):
+    """
+    设置摄像头自动曝光
+    enable: 是否启用自动曝光
+    manual_exposure: 手动模式下的曝光时间
+    """
+    cam.set(cv.CAP_PROP_AUTO_EXPOSURE, int(enable))
+    if not enable:
+        cam.set(cvs.CAP_PROP_EXPOSURE, manual_exposure)
+
+
+class HSV(object):
+    """
+    常用色值HSV边界
+    """
+
+    RED_UPPER = np.array([10, 255, 255])
+    RED_LOWER = np.array([0, 43, 46])
+    RED_UPPER2 = np.array([180, 255, 255])
+    RED_LOWER2 = np.array([156, 43, 46])
+    YELLOW_UPPER = np.array([34, 255, 255])
+    YELLOW_LOWER = np.array([26, 43, 46])
+    GREEN_UPPER = np.array([77, 255, 255])
+    GREEN_LOWER = np.array([35, 43, 46])
+    BLUE_UPPER = np.array([124, 255, 255])
+    BLUE_LOWER = np.array([100, 43, 46])
+    ORANGE_UPPER = np.array([25, 255, 255])
+    ORANGE_LOWER = np.array([11, 43, 46])
+    CYAN_UPPER = np.array([99, 255, 255])
+    CYAN_LOWER = np.array([78, 43, 46])
+    PURPLE_UPPER = np.array([155, 255, 255])
+    PURPLE_LOWER = np.array([125, 43, 46])
+    BLACK_UPPER = np.array([180, 255, 46])
+    BLACK_LOWER = np.array([0, 0, 0])
+    GRAY_UPPER = np.array([180, 43, 220])
+    GRAY_LOWER = np.array([0, 0, 46])
+    WHITE_UPPER = np.array([180, 30, 255])
+    WHITE_LOWER = np.array([0, 0, 221])
+
+
+def change_cam_resolution(cam, width: int, height: int, fps: int = 60):
+    """
+    改变摄像头分辨率
+    return 切换后的 宽,高,fps
+    """
+    cam.set(cv.CAP_PROP_FRAME_WIDTH, width)
+    cam.set(cv.CAP_PROP_FRAME_HEIGHT, height)
+    cam.set(cv.CAP_PROP_FPS, fps)
+    return (
+        cam.get(cv.CAP_PROP_FRAME_WIDTH),
+        cam.get(cv.CAP_PROP_FRAME_HEIGHT),
+        cam.get(cv.CAP_PROP_FPS),
+    )
+
+
+def color_recognition(img, threshold=0.4) -> Union[str, None]:
+    """
+    颜色识别(红绿蓝黄)
+    threshold: 颜色占比阈值, 大于该阈值则认为是该颜色
+    return: 识别结果的文本, 无法识别则为None
+    """
+    hsv = cv.cvtColor(img, cv.COLOR_BGR2HSV)
+    maske_r = cv.bitwise_or(
+        cv.inRange(hsv, HSV.RED_LOWER, HSV.RED_UPPER),
+        cv.inRange(hsv, HSV.RED_LOWER2, HSV.RED_UPPER2),
+    )
+    mask_g = cv.inRange(hsv, HSV.GREEN_LOWER, HSV.GREEN_UPPER)
+    mask_b = cv.inRange(hsv, HSV.BLUE_LOWER, HSV.BLUE_UPPER)
+    red_count = cv.countNonZero(maske_r)
+    green_count = cv.countNonZero(mask_g)
+    blue_count = cv.countNonZero(mask_b)
+    max_count = max(red_count, green_count, blue_count)
+    tho = int(img.shape[0] * img.shape[1] * threshold)
+    if max_count == red_count and red_count > tho:
+        return "red"
+    elif max_count == green_count and green_count > tho:
+        return "green"
+    elif max_count == blue_count and blue_count > tho:
+        return "blue"
+    else:
+        return None
 
 
 def basic_process(img):
@@ -278,6 +370,115 @@ def onnxruntime(cam, fd):
     time_ = (end - start) * 1000.0
     print("forward time:%fms" % time_)
     cv.imshow("img", img)
+
+
+def black_line(
+    image, type: int = 1, theta_threshold=0.25
+) -> Tuple[bool, float, float, float]:
+    """
+    寻找画面中的黑线并返回数据
+    type: 0:横线 1:竖线
+    theta_threshold: 角度容许误差(不能超过45度)
+    return: 是否查找到黑线, x偏移值(右正), y偏移值(下正), 弧度偏移值(顺时针正)
+    """
+    ######### 参数设置 #########
+    LOWER = np.array([0, 60, 0])
+    UPPER = np.array([150, 255, 75])
+    HOUGH_THRESHOLD = 200
+    ###########################
+    hsv_img = cv.cvtColor(image, cv.COLOR_BGR2HSV)
+    mask = cv.inRange(hsv_img, LOWER, UPPER)
+    if _DEBUG:
+        cv.imshow("Process", mask)
+
+    target_theta = 0 if type == 1 else np.pi / 2
+    # lines = cv2.HoughLines(mask, 1, np.pi/180, threshold=400, max_theta=0.1)
+    if type == 0:  # 横线
+        lines = cv.HoughLines(
+            mask,
+            1,
+            np.pi / 180,
+            threshold=HOUGH_THRESHOLD,
+            min_theta=target_theta - theta_threshold,
+            max_theta=target_theta + theta_threshold,
+        )
+    else:  # 竖线
+        lines = cv.HoughLines(
+            mask,
+            1,
+            np.pi / 180,
+            threshold=HOUGH_THRESHOLD,
+            max_theta=theta_threshold,
+        )
+        lines2 = cv.HoughLines(
+            mask,
+            1,
+            np.pi / 180,
+            threshold=HOUGH_THRESHOLD,
+            min_theta=np.pi - theta_threshold,
+        )
+        if lines is not None and lines2 is not None:
+            lines = np.concatenate((lines, lines2))
+        elif lines is None and lines2 is not None:
+            lines = lines2
+
+    if lines is not None:
+        for line in lines:
+            r, theta = line[0]
+            x0 = r * np.cos(theta)
+            y0 = r * np.sin(theta)
+            x1 = int(x0 - 1000 * np.sin(theta))
+            y1 = int(y0 + 1000 * np.cos(theta))
+            x2 = int(x0 + 1000 * np.sin(theta))
+            y2 = int(y0 - 1000 * np.cos(theta))
+            if _DEBUG:
+                cv.line(image, (x1, y1), (x2, y2), (0, 0, 255), 2)
+                cv.imshow("Result", image)
+            x = abs((x1 + x2) / 2)
+            y = abs((y1 + y2) / 2)
+            size = image.shape
+            x_offset = x - size[1] / 2
+            y_offset = y - size[0] / 2
+            if theta > np.pi / 2 and type == 1:
+                t_offset = theta - target_theta - np.pi
+            else:
+                t_offset = theta - target_theta
+            return True, x_offset, y_offset, t_offset
+    return False, 0, 0, 0
+
+
+def find_QRcode_zbar(frame) -> Tuple[bool, float, float]:
+    """
+    使用pyzbar寻找条码
+    return: 是否找到条码, x偏移值(右正), y偏移值(下正), 条码内容
+    """
+    image = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)  # 转换成灰度图
+    barcodes = pyzbar.decode(image)
+    if barcodes != []:
+        size = image.shape
+        for barcode in barcodes:
+            (x, y, w, h) = barcode.rect
+            data = barcode.data.decode("utf-8")
+            cx = int(x + w / 2)
+            cy = int(y + h / 2)
+            x_offset = cx - size[1] / 2
+            y_offset = cy - size[0] / 2
+            if _DEBUG:
+                image = frame.copy()
+                cv.circle(image, (cx, cy), 2, (0, 255, 0), 8)
+                cv.rectangle(image, (x, y), (x + w, y + h), (0, 0, 255), 2)
+                cv.putText(
+                    image,
+                    data,
+                    (x, y - 20),
+                    cv.FONT_HERSHEY_SIMPLEX,
+                    1.0,
+                    (0, 0, 255),
+                    2,
+                )
+                cv.imshow("Result", image)
+            return True, x_offset, y_offset, data
+    return False, 0, 0, ""
 
 
 class KCF_Tracker:  # OPENCV KCF Tracker

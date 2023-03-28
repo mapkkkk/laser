@@ -18,7 +18,7 @@ from Logger import logger
 
 class base_communicate(object):
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self):
         super().__init__()
         self.running = False
         # 初始位

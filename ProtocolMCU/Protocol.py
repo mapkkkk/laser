@@ -241,7 +241,7 @@ class class_protocol(base_communicate):
         偏航角:-180-180 度
         偏航速度:5-90 deg/s
         """
-        self._action_log("set yaw", f"{yaw}deg, {speed}deg/s")
+        # self._action_log("set yaw", f"{yaw}deg, {speed}deg/s")
         current_yaw = self.state.yaw.value
         if yaw < current_yaw:
             left_turn_deg = abs(current_yaw - yaw)

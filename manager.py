@@ -1,12 +1,7 @@
 # coding=UTF-8
 import cv2 as cv
 from time import sleep
-from ProtocolMCU.Base import base_communicate
 from ProtocolMCU.Application import class_application
-from ProtocolMCU.Protocol import class_protocol
-from PID import PID
-from Vision.ImgProcess import init_cap
-from Vision.ImgProcess import visualOpen
 from RadarDriver.RadarDriver import LD_Radar
 from Logger import logger
 import os
@@ -51,14 +46,14 @@ except:
     logger.warning("[MANAGER] Camera Opening Failed")
 
 # 尝试初始化雷达
-try:
-    radar = LD_Radar()
-    radar.start(
-        "/dev/serial/by-id/usb-Silicon_Labs_CP2102_USB_to_UART_Bridge_Controller_0001-if00-port0",
-        "LD06",
-    )
-except:
-    logger.warning("[MANAGER] Radar Connecting Failed")
+# try:
+#     radar = LD_Radar()
+#     radar.start(
+#         "/dev/serial/by-id/usb-Silicon_Labs_CP2102_USB_to_UART_Bridge_Controller_0001-if00-port0",
+#         "LD06",
+#     )
+# except:
+#     logger.warning("[MANAGER] Radar Connecting Failed")
 
 logger.info("[MANAGER] Self-Checking Passed")
 ###################### 开始任务 ####################
@@ -72,11 +67,17 @@ try:
     if target_mission == None:
         logger.info("[MANAGER] No Target Mission Set")
     elif target_mission == 1:
-        from mission1 import Mission
+        from MissionGeneral import Mission
     # elif target_mission = 0:
         # from visionTest import vision_test
 
-        mission = Mission(fc=fc, camera=cam)
+        mission = Mission(fc=fc, camera=cam, radar=None)
+
+    logger.info("[MANAGER] Calling Mission")
+
+    mission.run()
+    logger.info("[MANAGER] Mission Finished")
+
 except:
     logger.error("[MANAGER] Mission Failed, FXXK")
 

@@ -1,7 +1,6 @@
 # coding=UTF-8
 from copy import copy
 from sys import byteorder as sys_byteorder
-
 import serial
 '''
 这一块一会也得改不少东西
@@ -15,7 +14,6 @@ python的串口开启有定时, 如果一直开启会发生啥?
 串口类
 为发送接收类服务
 '''
-
 
 class FC_Serial:
 
