@@ -1,16 +1,26 @@
 import struct
 import time
 from typing import List, Optional, Tuple
-
 import cv2
 import numpy as np
 from scipy.signal import find_peaks
-
-from Logger import logger
-from DriverComponents import calculate_crc8
+from others.Logger import logger
 
 
-class Point_2D(object):
+"""
+雷达点云图解决方案，输出所需的图像
+觉得量大？那肯定啊，我也觉得——HZW
+"""
+
+
+class Point_2D:
+    """
+    有大量的object的类函数
+    这个类作为点云图里的每个点的存在
+    后面的map是这个点的集合
+    这个类是作为数据存在的，其中的方法是为了数据服务的
+    参考之前的Data里的c_like类型，那个叫Byte啥的东西
+    """
     degree = 0.0  # 0.0 ~ 359.9, 0 指向前方, 顺时针
     distance = 0  # 距离 mm
     confidence = 0  # 置信度 典型值=200
@@ -21,12 +31,20 @@ class Point_2D(object):
         self.confidence = confidence
 
     def __str__(self):
+        """
+        对象描述函数，作用：返回当前对象的字符串类型的信息描述，一般用于对象的直接输出显示
+        设置print(obj)打印的信息，默认是对象的内存地址等信息
+        :return: s
+        """
         s = f"Point: deg = {self.degree:>6.2f}, dist = {self.distance:>4.0f}"
         if self.confidence is not None:
             s += f", conf = {self.confidence:>3.0f}"
         return s
 
     def __repr__(self):
+        """
+        类似__str__，只是该函数是面向解释器的。
+        """
         return self.__str__()
 
     def to_xy(self) -> np.ndarray:
@@ -66,6 +84,11 @@ class Point_2D(object):
         self.distance = np.sqrt(xy[0] ** 2 + xy[1] ** 2)
 
     def __eq__(self, __o: object) -> bool:
+        """
+        判断是否相等 equal ，在obj==other时调用。如果重写了__eq__方法，则会将__hash__方法置为None
+        :param __o:
+        :return:
+        """
         if not isinstance(__o, Point_2D):
             return False
         return self.degree == __o.degree and self.distance == __o.distance
@@ -79,11 +102,21 @@ class Point_2D(object):
         return self.degree
 
     def __add__(self, other):
+        """
+        实现了两个对象的加法运算,似乎c++课一定会讲的
+        :param other:
+        :return: 返回的是一个加好的对象。。。
+        """
         if not isinstance(other, Point_2D):
             raise TypeError("Point_2D can only add with Point_2D")
-        return Point_2D().from_xy(self.to_xy() + other.to_xy())
+        return Point_2D().from_xy(self.to_xy() + other.to_xy())     # 毕竟得作为xy坐标系才好加嘛
 
     def __sub__(self, other):
+        """
+        实现了两个对象的加法运算
+        :param other:
+        :return: 返回的是一个减好的对象。。。（我真的不知道怎么解释）
+        """
         if not isinstance(other, Point_2D):
             raise TypeError("Point_2D can only sub with Point_2D")
         return Point_2D().from_xy(self.to_xy() - other.to_xy())
@@ -92,6 +125,7 @@ class Point_2D(object):
 class Radar_Package(object):
     """
     解析后的数据包
+    每个包包括12个点
     """
 
     rotation_spd = 0  # 转速 deg/s
@@ -128,37 +162,12 @@ class Radar_Package(object):
     def __repr__(self):
         return self.__str__()
 
-
-_radar_unpack_fmt = "<HH" + "HB" * 12 + "HH"  # 雷达数据解析格式
-
-
-def resolve_radar_data(data: bytes, to_package: Radar_Package = None) -> Radar_Package:
-    """
-    解析雷达原始数据
-    data: bytes 原始数据
-    to_package: 传入一个RadarPackage对象, 如果不传入, 则会新建一个
-    return: 解析后的RadarPackage对象
-    """
-    if len(data) != 47:  # fixed length of radar data
-        logger.warning(f"[RADAR] Invalid data length: {len(data)}")
-        return None
-    if calculate_crc8(data[:-1]) != data[-1]:
-        logger.warning("[RADAR] Invalid CRC8")
-        return None
-    if data[:2] != b"\x54\x2C":
-        logger.warning(f"[RADAR] Invalid header: {data[:2]:X}")
-        return None
-    datas = struct.unpack(_radar_unpack_fmt, data[2:-1])
-    if to_package is None:
-        return Radar_Package(datas)
-    else:
-        to_package.fill_data(datas)
-        return to_package
-
-
 class Map_360(object):
     """
     将点云数据映射到一个360度的圆上
+    每个数据是Point_2D(再次强调)
+    包括了很多功能，例如找最近点，但是我觉着这个应该更加区分才行。。。
+    有时间第一个就得重构这个
     """
 
     data = np.ones(360, dtype=np.int64) * -1  # -1: 未知
@@ -196,14 +205,15 @@ class Map_360(object):
                 or point.confidence < self.confidence_threshold
             ):
                 continue
-            base = int(point.degree + 0.5)
+            base = int(point.degree + 0.5)  # 四舍五入
             degs = [base - 1, base, base + 1]  # 扩大点映射范围, 加快更新速度, 降低精度
             # degs = [base] # 只映射实际角度
             for deg in degs:
                 deg %= 360
                 if deg not in deg_values_dict:
-                    deg_values_dict[deg] = set()
-                deg_values_dict[deg].add(point.distance)
+                    deg_values_dict[deg] = set()    # 就当集合处理
+                deg_values_dict[deg].add(point.distance)    # 添加扫描点的距离
+        # 过滤，三种方法，保证每个方向上只有一个点
         for deg, values in deg_values_dict.items():
             if self.update_mode == self.MODE_MIN:
                 self.data[deg] = min(values)
@@ -214,6 +224,7 @@ class Map_360(object):
             if self.timeout_clear:
                 self.time_stamp[deg] = time.time()
         if self.timeout_clear:
+            # 逆天语法
             self.data[self.time_stamp < time.time() - self.timeout_time] = -1
         self.rotation_spd = data.rotation_spd / 360
         self.update_count += 1
@@ -411,6 +422,7 @@ class Map_360(object):
     def get_point(self, angle: int) -> Point_2D:
         return Point_2D(angle, self.data[int(angle % 360)])
 
+    # 对象描述函数，作用：返回当前对象的字符串类型的信息描述，一般用于对象的直接输出显示。
     def __str__(self):
         string = "--- 360 Degree Map ---\n"
         invalid_count = 0
@@ -428,14 +440,3 @@ class Map_360(object):
         return self.__str__()
 
 
-# 单文件调试
-if __name__ == "__main__":
-    from TestRadarDriver import TEST_DATA
-
-    map_ = Map_360()
-    pack = resolve_radar_data(TEST_DATA)
-    map_.update(pack)
-    print(pack)
-    print(map_)
-    find = map_.find_nearest_with_ext_point_opt(0, 359, 4)
-    print(find)

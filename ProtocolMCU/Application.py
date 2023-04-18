@@ -1,6 +1,6 @@
 import time
 import threading
-from Logger import logger
+from others.Logger import logger
 from ProtocolMCU.Protocol import class_protocol
 # """
 # 关于类的继承：
@@ -15,8 +15,8 @@ from ProtocolMCU.Protocol import class_protocol
 
 
 class class_application(class_protocol):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self):
+        super().__init__()
         self.realtime_control_thread = None
         self.realtime_control_data_in_xyzyaw = [0, 0, 0, 0]
         self.realtime_control_running = False

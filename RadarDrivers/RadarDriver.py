@@ -1,21 +1,32 @@
 import threading
 import time
-# from re import I
+import struct
 
 import cv2
 import numpy as np
 import serial
 
-from ..Logger import logger
-from Radar import radar_resolve_rt_pose
-from RadarResolver import Map_360, Point_2D, Radar_Package, resolve_radar_data
-
+from others.Logger import logger
+from RadarDrivers.RadarVisualResolver import radar_resolve_rt_pose
+from RadarDrivers.RadarDataStruct import Map_360, Point_2D, Radar_Package
+from RadarDrivers.DriverComponents import calculate_crc8
+"""
+为了搞懂这部分代码，有几个知识点必须知道
+线程同步的Event还有基本串口通讯的理论
+HZW 正在一点点补足注释内容
+23.4.3 注释基本补足
+"""
 
 # > This class is used to create a radar object that can be used to plot radar data
+
+
 class LD_Radar(object):
+    """
+    雷达是双线程的模块，包括串口接收线程和地图解析线程，两个线程间的同步靠的是线程锁event
+    """
     def __init__(self):
         self.running = False
-        self._thread_list = []
+        self.thread_list = []
         self._package = Radar_Package()
         self._serial = None
         self._update_callback = None
@@ -27,8 +38,9 @@ class LD_Radar(object):
         self.rt_pose = [0, 0, 0]
         self._rt_pose_inited = [False, False, False]
         self.map = Map_360()
+        self._radar_unpack_fmt = "<HH" + "HB" * 12 + "HH"  # 雷达数据解析格式
 
-    def start(self, com_port, radar_type: str = "LD08", update_callback=None):
+    def start(self, com_port, radar_type: str = "LD06", update_callback=None):
         """
         开始监听雷达数据
         radar_type: LD08 or LD06
@@ -48,12 +60,12 @@ class LD_Radar(object):
         thread = threading.Thread(target=self._read_serial_task)
         thread.daemon = True
         thread.start()
-        self._thread_list.append(thread)
+        self.thread_list.append(thread)
         logger.info("[RADAR] Listenning thread started")
         thread = threading.Thread(target=self._map_resolve_task)
-        thread.daemon = True
+        thread.daemon = True    # 守护线程的意思就是在这个线程运行时，主线程的退出不会导致整个程序的退出，会等到所有守护线程结束
         thread.start()
-        self._thread_list.append(thread)
+        self.thread_list.append(thread)
         logger.info("[RADAR] Map resolve thread started")
 
     def stop(self, joined=False):
@@ -62,15 +74,15 @@ class LD_Radar(object):
         """
         self.running = False
         if joined:
-            for thread in self._thread_list:
-                thread.join()
+            for thread in self.thread_list:
+                thread.join()   # 日常解释join():认为是让主线程等待其执行完，其实就是在没执行完其中一个线程时，这句话就不会继续往下走
         if self._serial != None:
             self._serial.close()
         logger.info("[RADAR] Stopped all threads")
 
     def _read_serial_task(self):
         """
-        It reads the serial data from the radar and updates the map.
+        基本串口操作，大部分备注留在Serial文件里了
         """
         reading_flag = False
         start_bit = b"\x54\x2C"
@@ -91,42 +103,70 @@ class LD_Radar(object):
                     else:  # 读取数据
                         read_buffer += self._serial.read(package_length)
                         reading_flag = False
-                        resolve_radar_data(read_buffer, self._package)
+                        # 直接传入写在RadarResolver中的解析函数解析(这里之前写的有问题（但可能是我有问题））
+                        self._package = self.resolve_radar_data(read_buffer, self._package)
                         self.map.update(self._package)
-                        self._map_updated_event.set()
+                        self._map_updated_event.set()   # 保证有输入之后才更新地图，减少占用，其实可以理解为两个线程之间的同步过程
                         if self._update_callback != None:
                             self._update_callback()
                 else:
                     time.sleep(0.001)
                 if self._fp_flag:
-                    self._check_target_point()
+                    self.check_target_point()
             except Exception as e:
                 logger.error(f"[RADAR] Listenning thread error: {e}")
                 time.sleep(0.5)
 
+    def resolve_radar_data(self, data: bytes, to_package: Radar_Package = None) -> Radar_Package:
+        """
+        解析雷达原始数据
+        data: bytes 原始数据
+        to_package: 传入一个RadarPackage对象, 如果不传入, 则会新建一个
+        return: 解析后的RadarPackage对象
+        """
+        if len(data) != 47:  # fixed length of radar data
+            logger.warning(f"[RADAR] Invalid data length: {len(data)}")
+            return None
+        if calculate_crc8(data[:-1]) != data[-1]:
+            logger.warning("[RADAR] Invalid CRC8")
+            return None
+        if data[:2] != b"\x54\x2C":
+            logger.warning(f"[RADAR] Invalid header: {data[:2]:X}")
+            return None
+        datas = struct.unpack(self._radar_unpack_fmt, data[2:-1])
+        if to_package is None:
+            return Radar_Package(datas)
+        else:
+            to_package.fill_data(datas)
+            return to_package
     def _map_resolve_task(self):
         while self.running:
             try:
+                # 这里是这个意思：若event是False，就停，等待True，但是是True就直接过，返回True，timeout之后将无视False直接返回
                 if self._map_updated_event.wait(1):
-                    self._map_updated_event.clear()
+                    self._map_updated_event.clear()     # 这里则是将event设置为False，下一次循环又会再次等待
+                    # 是否查找杆的位置，有两种类型的找杆
                     if self._fp_flag:
                         if self._fp_type == 0:
-                            self._update_target_point(
+                            self.update_target_point(
                                 self.map.find_nearest(*self._fp_arg)
                             )
                         elif self._fp_type == 1:
-                            self._update_target_point(
+                            self.update_target_point(
                                 self.map.find_nearest_with_ext_point_opt(
                                     *self._fp_arg)
                             )
+                    # 位置解析，注意函数的对应内容
+                    # 注意这里的位置信息更新处理，采用了低通滤波的形式（学长语），通俗解释是进行了一定程度上的削峰处理
+                    # 三轴解析（x, y, yaw)，z轴有激光
                     if self._rtpose_flag:
                         img = self.map.output_cloud(
                             size=int(self._rtpose_size),
                             scale=0.1 * self._rtpose_scale_ratio,
                         )
-                        x, y, yaw = radar_resolve_rt_pose(img)
+                        x, y, yaw = radar_resolve_rt_pose(img)  # 解析点云图，用的还是cv其实
                         if x is not None:
-                            if self._rt_pose_inited[0]:
+                            if self._rt_pose_inited[0]:     # 判断是否被初始化过
                                 self.rt_pose[0] += (
                                     x / self._rtpose_scale_ratio -
                                     self.rt_pose[0]
@@ -156,13 +196,12 @@ class LD_Radar(object):
                     logger.warning("[RADAR] Map resolve thread wait timeout")
             except Exception as e:
                 import traceback
-
                 logger.error(
                     f"[RADAR] Map resolve thread error: {traceback.format_exc()}"
                 )
                 time.sleep(0.5)
 
-    def _init_radar_map(self):
+    def init_radar_map(self):
         """
         It creates a radar map image, draws the axes and circles on it, and sets up a mouse callback
         function to display the radar map
@@ -185,19 +224,16 @@ class LD_Radar(object):
         cv2.namedWindow("Radar Map", cv2.WINDOW_AUTOSIZE)
         cv2.setMouseCallback(
             "Radar Map",
-            lambda *args, **kwargs: self._show_radar_map_on_mouse(
+            lambda *args, **kwargs: self.show_radar_map_on_mouse(
                 *args, **kwargs),
         )
 
-    def _show_radar_map_on_mouse(self, event, x, y, flags, param):
+    def show_radar_map_on_mouse(self, event, x, y, flags):
         """
-        *|CURSOR_MARCADOR|*
-
         :param event: The event that happened
         :param x: x coordinate of the mouse event
         :param y: The y-coordinate of the mouse event
-        :param flags: 
-        :param param: the parameter you passed to cv2.setMouseCallback()
+        :param flags:
         """
         if event == cv2.EVENT_MOUSEWHEEL:
             if flags > 0:
@@ -218,7 +254,7 @@ class LD_Radar(object):
         """
         显示雷达地图(调试用, 高占用且阻塞)
         """
-        self._init_radar_map()
+        self.init_radar_map()
         while True:
             img_ = self._radar_map_img.copy()
             cv2.putText(
@@ -338,7 +374,7 @@ class LD_Radar(object):
         """
         self._fp_flag = False
 
-    def _update_target_point(self, points: list[Point_2D]):
+    def update_target_point(self, points: list[Point_2D]):
         """
         更新目标点位置
         """
@@ -348,7 +384,7 @@ class LD_Radar(object):
             self.fp_points = points
             self._fp_update_time = time.time()
 
-    def _check_target_point(self):
+    def check_target_point(self):
         """
         目标点超时判断
         """
@@ -400,6 +436,6 @@ class LD_Radar(object):
 
 if __name__ == "__main__":
     radar = LD_Radar()
-    radar.start("COM8", "LD08")
+    radar.start("/dev/ttyUSB0", "LD06")
     radar.show_radar_map()
     cv2.destroyAllWindows()

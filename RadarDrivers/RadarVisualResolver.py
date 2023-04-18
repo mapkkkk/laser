@@ -3,7 +3,7 @@ from typing import Literal
 import cv2
 import numpy as np
 
-from RadarResolver import Point_2D
+from RadarDrivers.RadarDataStruct import Point_2D
 
 
 def radar_resolve_rt_pose(img, _DEBUG=False) -> list[float, float, float]:

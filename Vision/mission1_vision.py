@@ -6,7 +6,7 @@ from ImgProcess import (
     get_ROI,
 
 )
-from Logger import logger
+from others.Logger import logger
 from time import sleep
 import threading
 
@@ -23,7 +23,7 @@ class img_mapping_system:
     def visual_navi_task(self):
         cam = self.cam
         change_cam_resolution(cam, 800, 600)
-        while (True):
+        while self.running:
             sleep(0.01)
             img = cam.read()
             if (self.process_number == 0):

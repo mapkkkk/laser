@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
-  <component name="PublishConfigData" remoteFilesAllowedToDisappearOnAutoupload="false" confirmBeforeUploading="false">
+  <component name="PublishConfigData" serverName="pi" remoteFilesAllowedToDisappearOnAutoupload="false" confirmBeforeUploading="false">
     <option name="confirmBeforeUploading" value="false" />
     <serverData>
-      <paths name="pi@172.20.10.3:22">
+      <paths name="pi">
         <serverdata>
           <mappings>
-            <mapping deploy="/home/pi/Desktop/pytemp" local="$PROJECT_DIR$" />
+            <mapping deploy="/Desktop/pythoncode" local="$PROJECT_DIR$" web="/" />
           </mappings>
         </serverdata>
       </paths>

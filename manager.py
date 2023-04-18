@@ -2,8 +2,8 @@
 import cv2 as cv
 from time import sleep
 from ProtocolMCU.Application import class_application
-from RadarDriver.RadarDriver import LD_Radar
-from Logger import logger
+from RadarDrivers.RadarDriver import LD_Radar
+from others.Logger import logger
 import os
 import sys
 
@@ -18,7 +18,7 @@ HZW
 # 这个串口是树莓派的串口TX&RX
 # 这个串口性能更高,之前分配给蓝牙,现在就分给物理串口,蓝牙就报废了
 port = '/dev/ttyAMA0'
-
+DEBUG = True
 
 def self_reboot():
     logger.info("[MANAGER] Manager Restarting")
@@ -26,16 +26,26 @@ def self_reboot():
 
 
 # 尝试本地连接
-try:
-    fc = class_application()
-    fc.start_listen_serial(port)    # 建立MCU连接
-    fc.wait_for_connection(5)   # 等待连接,未连接则返回错误值
-except:
-    logger.warning(
-        "[MANAGER] Manager Connecting Failed, Reboot")
-    sleep(1)
-    self_reboot()
-
+# try:
+fc = class_application()
+# logger.warning("[FC] init done")
+fc.start_listen_serial(serial_port=port)# 建立MCU连接
+logger.warning("[FC] start listen serial")
+fc.wait_for_connection(5)
+# fc.start_beep()
+# sleep(1)
+# fc.stop_beep()
+# 等待连接,未连接则返回错误值
+# except:
+#     logger.warning(
+#         "[MANAGER] Manager Connecting Failed, Reboot")
+#     if DEBUG:
+#         exit()
+#     sleep(1)
+#     self_reboot()
+while True:
+    # print(fc.state.mode.value, fc.state.alt.value)
+    sleep(0.001)
 # 尝试初始化相机
 try:
     cam = cv.VideoCapture(0)
@@ -46,16 +56,20 @@ except:
     logger.warning("[MANAGER] Camera Opening Failed")
 
 # 尝试初始化雷达
-# try:
-#     radar = LD_Radar()
-#     radar.start(
-#         "/dev/serial/by-id/usb-Silicon_Labs_CP2102_USB_to_UART_Bridge_Controller_0001-if00-port0",
-#         "LD06",
-#     )
-# except:
-#     logger.warning("[MANAGER] Radar Connecting Failed")
+try:
+    radar = LD_Radar()
+    radar.start(
+        "/dev/serial/by-id/usb-Silicon_Labs_CP2102_USB_to_UART_Bridge_Controller_0001-if00-port0",
+        "LD06",
+    )
+except:
+    logger.warning("[MANAGER] Radar Connecting Failed")
 
 logger.info("[MANAGER] Self-Checking Passed")
+if DEBUG:
+    while(True):
+        print(fc.state.mode.value, fc.state.rol.value, fc.state.alt.value)
+        sleep(1)
 ###################### 开始任务 ####################
 logger.info("[MANAGER] Target Mission: 1")
 
@@ -67,7 +81,7 @@ try:
     if target_mission == None:
         logger.info("[MANAGER] No Target Mission Set")
     elif target_mission == 1:
-        from MissionGeneral import Mission
+        from MissionGeneralRadar import Mission
     # elif target_mission = 0:
         # from visionTest import vision_test
 

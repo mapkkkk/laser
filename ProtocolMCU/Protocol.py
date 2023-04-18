@@ -5,14 +5,12 @@ from ProtocolMCU.Data import class_option
 from ProtocolMCU.Base import base_communicate
 from ProtocolMCU.Data import Data_To_FC
 from ProtocolMCU.Data import Byte_Var
-from Logger import logger
+from others.Logger import logger
 '''
 基本任务底层
 HZW
 NOTE:
-当前实现功能：
-CMD转发(在飞控上也应该写好了相关的东西)
-最常用的方法：实时控制
+ALL DONE
 '''
 
 
@@ -22,11 +20,11 @@ class class_protocol(base_communicate):
     HOLD_POS_MODE = 2
     PROGRAM_MODE = 3
 
-    def __init__(self, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
-        self.byte_temp1 = Byte_Var()
-        self.byte_temp2 = Byte_Var()
-        self.byte_temp3 = Byte_Var()
+    def __init__(self) -> None:
+        super().__init__()
+        self.byte_temp1 = Byte_Var('u8', int)
+        self.byte_temp2 = Byte_Var('u8', int)
+        self.byte_temp3 = Byte_Var('u8', int)
         '''
         在上一个类中已经完成底层通讯的搭建,send和receive都可直接调用,且能自动化运行
         在这个类中完成一部分的"一键"操作
@@ -60,12 +58,19 @@ class class_protocol(base_communicate):
                 return False
         return True
 
-    ################################## 命令发送，经过MCU处理进行控制###################################
+# 命令发送，经过MCU处理进行控制
 
     def send_command(self,
                      sub_option: int,
                      data: bytes = b"",
                      need_ack=False) -> None:
+        """
+        :param sub_option: 填入子选项
+        :param data: 数据
+        :param need_ack: 是否需要检查
+        :return:
+        """
+
         self.byte_temp1.reset(sub_option, "u8", int)
         self.send_data_to_fc(self.byte_temp1.bytes + data,
                              0x01,
@@ -85,23 +90,23 @@ class class_protocol(base_communicate):
         """
         data = struct.pack("<hhhh", int(vel_x), int(vel_y), int(vel_z),
                            int(-yaw))
-        self.send_command(0x03, data)  # 帧结尾
+        self.send_command(0x01, data)  # 帧结尾
 
     def start_beep(self):
         """
         蜂鸣器控制
         """
-        self.send_data_to_fc(self.data_to_fc.start_beep_data.bytes,
-                             self.option.beep)
+        self.byte_temp1.reset(0x01, "u8", int)
+        self.send_command(0x02, self.byte_temp1.bytes, need_ack=True)
 
     def stop_beep(self):
         """
         蜂鸣器控制
         """
-        self.send_data_to_fc(self.data_to_fc.stop_beep_data.bytes,
-                             self.option.beep)
+        self.byte_temp1.reset(0x02, "u8", int)
+        self.send_command(0x02, self.byte_temp1.bytes, need_ack=True)
 
-    ##################################### IMU直接转发#######################################
+# IMU直接转发
 
     def _send_imu_command_frame(self,
                                 CID: int,

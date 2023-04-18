@@ -2,6 +2,7 @@
 from copy import copy
 from sys import byteorder as sys_byteorder
 import serial
+
 '''
 这一块一会也得改不少东西
 2022.10.6这一块基本改完了（虽然就是注释了接收的代码）
@@ -15,6 +16,7 @@ python的串口开启有定时, 如果一直开启会发生啥?
 为发送接收类服务
 '''
 
+
 class FC_Serial:
 
     def __init__(self, port, baudrate, timeout=0.5, byteOrder=sys_byteorder):
@@ -26,7 +28,6 @@ class FC_Serial:
         self.read_buffer = bytes()
         self.read_save_buffer = bytes()
         self.waiting_buffer = bytes()
-        self.reading_flag = False
         self.byte_order = byteOrder
         self.frame_count = 0
         self.frame_length = 0
@@ -39,13 +40,15 @@ class FC_Serial:
         self.send_option_bit = optionBit
 
     def read_config(self, startBit):
-        self.send_start_bit = startBit
+        self.read_start_bit = startBit
 
-    def read(self) -> bool:
-        tmp = 0x00
-        while self.ser.in_waiting() > 0:
+    def read_one_bit(self):
+        # tmp = 0x00
+        # print(self.ser.in_waiting)
+        while self.ser.in_waiting > 0:
             # 读一个字节
             tmp = self.ser.read(1)
+            print(tmp)
             start_bit_len = len(self.read_start_bit)
             if not self.read_flag:
                 self.waiting_buffer += tmp
@@ -54,6 +57,8 @@ class FC_Serial:
                     # 但是这个waiting_buffer到底是干啥用的真搞不太清楚
                     if self.waiting_buffer[-start_bit_len:] == bytes(
                             self.read_start_bit):
+                        # print(tmp)
+                        # print('True')
                         self.read_flag = True
                         self.read_buffer = bytes()
                         self.frame_count = 0
@@ -65,25 +70,30 @@ class FC_Serial:
                 self.frame_length_bit = int.from_bytes(tmp,
                                                        self.byte_order,
                                                        signed=False)
+                # print(self.frame_length_bit)
+                # print(tmp)
                 self.frame_length = self.frame_length_bit & 0b11111111  # 为激光雷达预留
                 continue
 
-            if self.reading_flag:
+            if self.read_flag:
                 self.frame_count += 1
                 self.read_buffer += tmp
                 if self.frame_count >= self.frame_length:
-                    self.reading_flag = False
+                    print('true')
+                    self.read_flag = False
                     if self.check_rx_data_sum():
+                        print("check pass")
                         self.read_save_buffer = copy(self.read_buffer)
                         self.read_buffer = bytes()
-                        return True
+                        return 1
                     else:
                         self.read_buffer = bytes()
-                        return False
-            return False
+                        return 0
+            return 0
 
     def check_rx_data_sum(self):
         length = len(self.read_buffer)
+        # print(self.read_buffer)
         checksum = 0
         for i in self.read_start_bit:
             checksum += i
