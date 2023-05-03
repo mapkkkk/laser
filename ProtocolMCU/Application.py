@@ -138,7 +138,7 @@ class class_application(class_protocol):
         """
         停止自动发送实时控制
         """
-        self.realtime_control_data_in_xyzyaw = [0, 0, 0, 0] # 优先恢复静止
+        self.realtime_control_data_in_xyzyaw = [0, 0, 0, 0]     # 优先恢复静止
         self.realtime_control_running = False
         if self.realtime_control_thread:
             self.realtime_control_thread.join()

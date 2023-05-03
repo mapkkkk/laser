@@ -43,12 +43,10 @@ class FC_Serial:
         self.read_start_bit = startBit
 
     def read_one_bit(self):
-        # tmp = 0x00
-        # print(self.ser.in_waiting)
         while self.ser.in_waiting > 0:
             # 读一个字节
             tmp = self.ser.read(1)
-            print(tmp)
+            # print(tmp)
             start_bit_len = len(self.read_start_bit)
             if not self.read_flag:
                 self.waiting_buffer += tmp
@@ -57,8 +55,6 @@ class FC_Serial:
                     # 但是这个waiting_buffer到底是干啥用的真搞不太清楚
                     if self.waiting_buffer[-start_bit_len:] == bytes(
                             self.read_start_bit):
-                        # print(tmp)
-                        # print('True')
                         self.read_flag = True
                         self.read_buffer = bytes()
                         self.frame_count = 0
@@ -70,24 +66,24 @@ class FC_Serial:
                 self.frame_length_bit = int.from_bytes(tmp,
                                                        self.byte_order,
                                                        signed=False)
-                # print(self.frame_length_bit)
-                # print(tmp)
                 self.frame_length = self.frame_length_bit & 0b11111111  # 为激光雷达预留
+                # print(self.frame_length)
+                # self.frame_length += 1
                 continue
 
             if self.read_flag:
                 self.frame_count += 1
                 self.read_buffer += tmp
                 if self.frame_count >= self.frame_length:
-                    print('true')
                     self.read_flag = False
                     if self.check_rx_data_sum():
-                        print("check pass")
                         self.read_save_buffer = copy(self.read_buffer)
                         self.read_buffer = bytes()
                         return 1
                     else:
+                        # print(self.read_buffer)
                         self.read_buffer = bytes()
+                        # print(False)
                         return 0
             return 0
 
@@ -110,6 +106,7 @@ class FC_Serial:
         received_checksum = int.from_bytes(self.ser.read(1),
                                            byteorder=self.byte_order,
                                            signed=False)
+        # print(received_checksum, checksum)
         if received_checksum == checksum:
             return True
         return False
@@ -138,6 +135,7 @@ class FC_Serial:
         send_data += checksum.to_bytes(1, self.byte_order)
         self.ser.write(send_data)
         self.ser.flush()
+        # print(send_data)
         return send_data
 
     def close(self):

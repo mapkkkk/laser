@@ -10,12 +10,14 @@ from others.Logger import logger
 from RadarDrivers.RadarVisualResolver import radar_resolve_rt_pose
 from RadarDrivers.RadarDataStruct import Map_360, Point_2D, Radar_Package
 from RadarDrivers.DriverComponents import calculate_crc8
+
 """
 为了搞懂这部分代码，有几个知识点必须知道
 线程同步的Event还有基本串口通讯的理论
 HZW 正在一点点补足注释内容
 23.4.3 注释基本补足
 """
+
 
 # > This class is used to create a radar object that can be used to plot radar data
 
@@ -24,6 +26,7 @@ class LD_Radar(object):
     """
     雷达是双线程的模块，包括串口接收线程和地图解析线程，两个线程间的同步靠的是线程锁event
     """
+
     def __init__(self):
         self.running = False
         self.thread_list = []
@@ -63,7 +66,7 @@ class LD_Radar(object):
         self.thread_list.append(thread)
         logger.info("[RADAR] Listenning thread started")
         thread = threading.Thread(target=self._map_resolve_task)
-        thread.daemon = True    # 守护线程的意思就是在这个线程运行时，主线程的退出不会导致整个程序的退出，会等到所有守护线程结束
+        thread.daemon = True  # 守护线程的意思就是在这个线程运行时，主线程的退出不会导致整个程序的退出，会等到所有守护线程结束
         thread.start()
         self.thread_list.append(thread)
         logger.info("[RADAR] Map resolve thread started")
@@ -75,8 +78,8 @@ class LD_Radar(object):
         self.running = False
         if joined:
             for thread in self.thread_list:
-                thread.join()   # 日常解释join():认为是让主线程等待其执行完，其实就是在没执行完其中一个线程时，这句话就不会继续往下走
-        if self._serial != None:
+                thread.join()  # 日常解释join():认为是让主线程等待其执行完，其实就是在没执行完其中一个线程时，这句话就不会继续往下走
+        if self._serial is not None:
             self._serial.close()
         logger.info("[RADAR] Stopped all threads")
 
@@ -97,7 +100,7 @@ class LD_Radar(object):
                         if len(wait_buffer) >= 2:
                             if wait_buffer[-2:] == start_bit:
                                 reading_flag = True
-                                read_count = 0
+                                # read_count = 0
                                 wait_buffer = bytes()
                                 read_buffer = start_bit
                     else:  # 读取数据
@@ -106,8 +109,8 @@ class LD_Radar(object):
                         # 直接传入写在RadarResolver中的解析函数解析(这里之前写的有问题（但可能是我有问题））
                         self._package = self.resolve_radar_data(read_buffer, self._package)
                         self.map.update(self._package)
-                        self._map_updated_event.set()   # 保证有输入之后才更新地图，减少占用，其实可以理解为两个线程之间的同步过程
-                        if self._update_callback != None:
+                        self._map_updated_event.set()  # 保证有输入之后才更新地图，减少占用，其实可以理解为两个线程之间的同步过程
+                        if self._update_callback is not None:
                             self._update_callback()
                 else:
                     time.sleep(0.001)
@@ -117,7 +120,7 @@ class LD_Radar(object):
                 logger.error(f"[RADAR] Listenning thread error: {e}")
                 time.sleep(0.5)
 
-    def resolve_radar_data(self, data: bytes, to_package: Radar_Package = None) -> Radar_Package:
+    def resolve_radar_data(self, data: bytes, to_package: Radar_Package = None):
         """
         解析雷达原始数据
         data: bytes 原始数据
@@ -139,12 +142,13 @@ class LD_Radar(object):
         else:
             to_package.fill_data(datas)
             return to_package
+
     def _map_resolve_task(self):
         while self.running:
             try:
                 # 这里是这个意思：若event是False，就停，等待True，但是是True就直接过，返回True，timeout之后将无视False直接返回
                 if self._map_updated_event.wait(1):
-                    self._map_updated_event.clear()     # 这里则是将event设置为False，下一次循环又会再次等待
+                    self._map_updated_event.clear()  # 这里则是将event设置为False，下一次循环又会再次等待
                     # 是否查找杆的位置，有两种类型的找杆
                     if self._fp_flag:
                         if self._fp_type == 0:
@@ -166,28 +170,28 @@ class LD_Radar(object):
                         )
                         x, y, yaw = radar_resolve_rt_pose(img)  # 解析点云图，用的还是cv其实
                         if x is not None:
-                            if self._rt_pose_inited[0]:     # 判断是否被初始化过
+                            if self._rt_pose_inited[0]:  # 判断是否被初始化过
                                 self.rt_pose[0] += (
-                                    x / self._rtpose_scale_ratio -
-                                    self.rt_pose[0]
-                                ) * self._rtpose_low_pass_ratio
+                                                           x / self._rtpose_scale_ratio -
+                                                           self.rt_pose[0]
+                                                   ) * self._rtpose_low_pass_ratio
                             else:
                                 self.rt_pose[0] = x / self._rtpose_scale_ratio
                                 self._rt_pose_inited[0] = True
                         if y is not None:
                             if self._rt_pose_inited[1]:
                                 self.rt_pose[1] += (
-                                    y / self._rtpose_scale_ratio -
-                                    self.rt_pose[1]
-                                ) * self._rtpose_low_pass_ratio
+                                                           y / self._rtpose_scale_ratio -
+                                                           self.rt_pose[1]
+                                                   ) * self._rtpose_low_pass_ratio
                             else:
                                 self.rt_pose[1] = y / self._rtpose_scale_ratio
                                 self._rt_pose_inited[1] = True
                         if yaw is not None:
                             if self._rt_pose_inited[2]:
                                 self.rt_pose[2] += (
-                                    yaw - self.rt_pose[2]
-                                ) * self._rtpose_low_pass_ratio
+                                                           yaw - self.rt_pose[2]
+                                                   ) * self._rtpose_low_pass_ratio
                             else:
                                 self.rt_pose[2] = yaw
                                 self._rt_pose_inited[2] = True
@@ -243,11 +247,11 @@ class LD_Radar(object):
             self.__radar_map_img_scale = min(
                 max(0.001, self.__radar_map_img_scale), 2)
         elif event == cv2.EVENT_LBUTTONDOWN or (
-            event == cv2.EVENT_MOUSEMOVE and flags & cv2.EVENT_FLAG_LBUTTON
+                event == cv2.EVENT_MOUSEMOVE and flags & cv2.EVENT_FLAG_LBUTTON
         ):
             self.__radar_map_info_angle = (
-                90 - np.arctan2(300 - y, x - 300) * 180 / np.pi
-            ) % 360
+                                                  90 - np.arctan2(300 - y, x - 300) * 180 / np.pi
+                                          ) % 360
             self.__radar_map_info_angle = int(self.__radar_map_info_angle)
 
     def show_radar_map(self):
@@ -259,7 +263,7 @@ class LD_Radar(object):
             img_ = self._radar_map_img.copy()
             cv2.putText(
                 img_,
-                f"{100/self.__radar_map_img_scale:.0f}",
+                f"{100 / self.__radar_map_img_scale:.0f}",
                 (300, 220),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 0.4,
@@ -267,7 +271,7 @@ class LD_Radar(object):
             )
             cv2.putText(
                 img_,
-                f"{200/self.__radar_map_img_scale:.0f}",
+                f"{200 / self.__radar_map_img_scale:.0f}",
                 (300, 120),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 0.4,
@@ -275,7 +279,7 @@ class LD_Radar(object):
             )
             cv2.putText(
                 img_,
-                f"{300/self.__radar_map_img_scale:.0f}",
+                f"{300 / self.__radar_map_img_scale:.0f}",
                 (300, 20),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 0.4,
@@ -339,13 +343,13 @@ class LD_Radar(object):
                 cv2.imshow("Cloud", out)
 
     def start_find_point(
-        self,
-        timeout: float,
-        type: int,
-        from_: int,
-        to_: int,
-        num: int,
-        range_limit: int,
+            self,
+            timeout: float,
+            type: int,
+            from_: int,
+            to_: int,
+            num: int,
+            range_limit: int,
     ):
         """
         开始更新目标点
@@ -389,14 +393,14 @@ class LD_Radar(object):
         目标点超时判断
         """
         if (
-            not self.fp_timeout_flag
-            and time.time() - self._fp_update_time > self._fp_timeout
+                not self.fp_timeout_flag
+                and time.time() - self._fp_update_time > self._fp_timeout
         ):
             self.fp_timeout_flag = True
             logger.warning("[Radar] lost point!")
 
     def start_resolve_pose(
-        self, size: int = 1000, scale_ratio: float = 1, low_pass_ratio: float = 0.5
+            self, size: int = 1000, scale_ratio: float = 1, low_pass_ratio: float = 0.5
     ):
         """
         开始使用点云图解算位姿
@@ -421,7 +425,7 @@ class LD_Radar(object):
         self.rt_pose_update_event.clear()
 
     def update_resolve_pose_args(
-        self, size: int = 1000, ratio: float = 1, low_pass_ratio: float = 0.5
+            self, size: int = 1000, ratio: float = 1, low_pass_ratio: float = 0.5
     ):
         """
         更新参数

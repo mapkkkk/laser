@@ -3,10 +3,9 @@ import cv2 as cv
 import numpy as np
 import os
 import time
-from typing import List, Optional, Tuple, Union
-from pyzbar import pyzbar
+from typing import List, Optional, Tuple, Union, Any
+# from pyzbar import pyzbar
 '''
-图像处理主程序
 python储存图片的方式是按照行X列的方式的,例如720p的图就是720X1080
 '''
 
@@ -74,7 +73,7 @@ def set_cam_autoexp(cam, enable=True, manual_exposure=0.25):
     """
     cam.set(cv.CAP_PROP_AUTO_EXPOSURE, int(enable))
     if not enable:
-        cam.set(cvs.CAP_PROP_EXPOSURE, manual_exposure)
+        cam.set(cv.CAP_PROP_EXPOSURE, manual_exposure)
 
 
 class HSV(object):
@@ -228,8 +227,8 @@ def draw_pred(frame, class_name, conf, left, top, right, bottom):
     """
     cv.rectangle(frame, (left, top), (right, bottom), (0, 0, 255), thickness=2)
     label = f"{class_name}: {conf:.2f}"
-    labelSize, _ = cv.getTextSize(label, cv.FONT_HERSHEY_SIMPLEX, 0.8, 2)
-    top = max(top - 10, labelSize[1])
+    label_size, _ = cv.getTextSize(label, cv.FONT_HERSHEY_SIMPLEX, 0.8, 2)
+    top = max(top - 10, label_size[1])
     left = max(left, 0)
     cv.putText(
         frame,
@@ -264,7 +263,7 @@ class FastestDetOnnx:
         self.nmsThreshold = nmsThreshold
         self.drawOutput = drawOutput
 
-    def __preprocess(self, src_img, size):
+    def preprocess(self, src_img, size):
         """
         前处理, 对输入图像进行归一化
         """
@@ -275,7 +274,7 @@ class FastestDetOnnx:
 
         return output.astype("float32")
 
-    def __postprocess(self, frame, outs):
+    def postprocess(self, frame, outs):
         """
         后处理, 对输出进行筛选
         """
@@ -447,7 +446,8 @@ def black_line(
     return False, 0, 0, 0
 
 
-def find_QRcode_zbar(frame) -> Tuple[bool, float, float]:
+def find_QRcode_zbar(frame) -> Union[
+    tuple[bool, Union[Union[int, float], Any], Union[Union[int, float], Any], Any], tuple[bool, int, int, str]]:
     """
     使用pyzbar寻找条码
     return: 是否找到条码, x偏移值(右正), y偏移值(下正), 条码内容

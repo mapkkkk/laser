@@ -2,7 +2,7 @@ import cv2
 import threading
 from RadarDrivers.RadarDriver import LD_Radar
 from ProtocolMCU.Application import class_application
-from MissionGeneralRadar import Mission
+from MissionGeneralRadar import Mission_General
 from others.Logger import logger
 from time import sleep
 from Vision.ImgProcess import (
@@ -11,7 +11,7 @@ from Vision.ImgProcess import (
 )
 
 
-class Mission1(Mission):
+class Mission(Mission_General):
     def __init__(self, fc: class_application, camera: cv2.VideoCapture, radar: LD_Radar, pid_tunings):
         super().__init__(fc, camera, radar)
         self.pid_tunings = {

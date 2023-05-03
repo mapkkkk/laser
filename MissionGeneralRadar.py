@@ -18,7 +18,7 @@ from Vision.mission1_vision import img_mapping_system
 """
 
 
-class Mission:
+class Mission_General:
     def __init__(self, fc: class_application, camera: cv.VideoCapture, radar: LD_Radar):
         '''
         完成基本的实例的定义

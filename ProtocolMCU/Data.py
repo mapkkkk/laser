@@ -4,6 +4,7 @@
 直接实例化即可调用
 """
 import struct
+import time
 
 
 # This class is used to store the settings for the FC_Main_Window class.
@@ -49,6 +50,8 @@ class Byte_Var:
         self._var_type = data_type
         self._multi = value_multi
         self.name = name
+        self._init_time = time.time()
+        self._last_update_time = self._init_time
 
     def reset(self, init_value, ctype, data_type, value_multi=1.0, name=None):
         # 解析一下自己定的数据类型
@@ -83,7 +86,7 @@ class Byte_Var:
     @value.setter
     def value(self, value):
         self._value = self._var_type(value)
-        # self._last_update_time = time.time()
+        self._last_update_time = time.time()
 
     # 放大参数
     def update_value_with_mul(self, value):
@@ -212,6 +215,8 @@ class FC_State_Struct:
     vel_x = Byte_Var("s16", int, name="vel_x")  # cm/s
     vel_y = Byte_Var("s16", int, name="vel_y")  # cm/s
     vel_z = Byte_Var("s16", int, name="vel_z")  # cm/s
+    pos_x = Byte_Var("s32", int, name="pos_x")  # cm
+    pos_y = Byte_Var("s32", int, name="pos_y")  # cm
     bat = Byte_Var("u16", float, 0.01, name="bat")  # V
     mode = Byte_Var("u8", int, name="mode")  #
     unlock = Byte_Var("u8", bool, name="unlock")  #
@@ -230,6 +235,8 @@ class FC_State_Struct:
         vel_x,
         vel_y,
         vel_z,
+        pos_x,
+        pos_y,
         bat,
         mode,
         unlock,

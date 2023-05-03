@@ -8,14 +8,14 @@ from ProtocolMCU.Data import FC_State_Struct, FC_Settings_Struct
 from others.Logger import logger
 
 
-# '''
+# ’‘’
 # 发送类
 # 用来实例化作为接收发送端
 # 2022.11.20
 # 这里的logger完全照搬(搞得好想其他不是照搬的一样)
 # 并且完全没有搞懂logger是干啥用的, 大概是python的控制台组件。。。
 # 类在继承的时候没有新建一个类，而是加以改动，不会产生另一个实例
-# '''
+# ‘’‘
 
 
 class base_communicate(object):
@@ -51,7 +51,7 @@ class base_communicate(object):
             self,
             serial_port: str,
             bit_rate: int = 500000,
-            print_state=True,
+            print_state=False,
             callback=None,
     ):
         self._state_update_callback = callback
@@ -74,19 +74,12 @@ class base_communicate(object):
         last_heartbeat_time = time.time()
         while self.running:
             try:
-                # print("try in")
-                # print(type(self._ser_32.read_one_bit()))
-                # print(type(self._ser_32))
                 if self._ser_32.read_one_bit():  # 读进
                     _data = self._ser_32.rx_data
-                    print(self._ser_32.rx_data)
-                    # logger.debug(f"[FC] Read: {bytes_to_str(_data)}")
                     cmd = _data[0]
                     data = _data[1:]
-                    print(cmd)
                     if cmd == 0x01:  # 状态回传
                         self._update_state(data)
-                        logger.info("[FC] receive data")
                     elif cmd == 0x02:  # ACK返回
                         self._received_ack = data[0]
                         self._waiting_ack = False
@@ -119,12 +112,12 @@ class base_communicate(object):
             bytes: 实际发送的数据帧
         """
 
-        global check_ack, send_time
+        check_ack = None
+        send_time = None
         if need_ack:
             if _ack_retry_count is None:
                 _ack_retry_count = self.settings.ack_max_retry
             if _ack_retry_count < 0:
-                # raise Exception("Wait ACK reached max retry")
                 logger.error("Wait ACK reached max retry")
                 return None
             self._waiting_ack = True
@@ -155,7 +148,6 @@ class base_communicate(object):
                 logger.warning("[FC] ACK not received or invalid, retrying")
                 return self.send_data_to_fc(data, option, need_ack,
                                             _ack_retry_count - 1)
-        # print(sent)
         return sent
 
     # 退出函数

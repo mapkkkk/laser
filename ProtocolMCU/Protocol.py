@@ -97,14 +97,31 @@ class class_protocol(base_communicate):
         蜂鸣器控制
         """
         self.byte_temp1.reset(0x01, "u8", int)
-        self.send_command(0x02, self.byte_temp1.bytes, need_ack=True)
+        self.send_command(0x02, self.byte_temp1.bytes, need_ack=False)
 
     def stop_beep(self):
         """
         蜂鸣器控制
         """
         self.byte_temp1.reset(0x02, "u8", int)
-        self.send_command(0x02, self.byte_temp1.bytes, need_ack=True)
+        self.send_command(0x02, self.byte_temp1.bytes, need_ack=False)
+
+    def set_pwm_output(self, channel: int, pwm: float) -> None:
+        """
+        设置PWM输出
+        channel: 0-3
+        pwm: 0.00-100.00
+        """
+        assert channel in [0, 1, 2, 3]
+        pwm_int = int(pwm * 100)
+        pwm_int = max(0, min(10000, pwm_int))
+        self.byte_temp1.reset(channel, "u8", int)
+        self.byte_temp2.reset(pwm_int, "s16", int)
+        self.send_command(
+            0x04,
+            self.byte_temp1.bytes + self.byte_temp2.bytes,
+            True,  # need ack
+        )
 
 # IMU直接转发
 
