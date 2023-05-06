@@ -9,7 +9,7 @@ from others.Logger import logger
 
 """
 雷达点云图解决方案，输出所需的图像
-觉得量大？那肯定啊，我也觉得——HZW
+觉得量大?那肯定啊,我也觉得——HZW
 """
 
 
@@ -19,7 +19,7 @@ class Point_2D:
     这个类作为点云图里的每个点的存在
     后面的map是这个点的集合
     这个类是作为数据存在的，其中的方法是为了数据服务的
-    参考之前的Data里的c_like类型，那个叫Byte啥的东西
+    参考之前的Data里的c_like类型,那个叫Byte啥的东西
     """
     degree = 0.0  # 0.0 ~ 359.9, 0 指向前方, 顺时针
     distance = 0  # 距离 mm
@@ -43,7 +43,7 @@ class Point_2D:
 
     def __repr__(self):
         """
-        类似__str__，只是该函数是面向解释器的。
+        类似__str__,只是该函数是面向解释器的。
         """
         return self.__str__()
 
@@ -85,7 +85,7 @@ class Point_2D:
 
     def __eq__(self, __o: object) -> bool:
         """
-        判断是否相等 equal ，在obj==other时调用。如果重写了__eq__方法，则会将__hash__方法置为None
+        判断是否相等 equal ,在obj==other时调用。如果重写了__eq__方法,则会将__hash__方法置为None
         :param __o:
         :return:
         """
@@ -162,6 +162,7 @@ class Radar_Package(object):
     def __repr__(self):
         return self.__str__()
 
+
 class Map_360(object):
     """
     将点云数据映射到一个360度的圆上
@@ -170,7 +171,7 @@ class Map_360(object):
     有时间第一个就得重构这个
     """
 
-    data = np.ones(360, dtype=np.int64) * -1  # -1: 未知
+    data = np.ones(360, dtype=np.int64) * -1  # set -1: 无效 1: 有效
     time_stamp = np.zeros(360, dtype=np.float64)  # 时间戳
     ######### 映射方法 ########
     MODE_MIN = 0  # 在范围内选择最近的点更新
@@ -224,9 +225,7 @@ class Map_360(object):
             if self.timeout_clear:
                 self.time_stamp[deg] = time.time()
         if self.timeout_clear:
-            # 逆天语法
             self.data[self.time_stamp < time.time() - self.timeout_time] = -1
-        self.rotation_spd = data.rotation_spd / 360
         self.update_count += 1
 
     def in_deg(self, from_: int, to_: int) -> List[Point_2D]:
@@ -252,109 +251,6 @@ class Map_360(object):
         """
         self.data = np.roll(self.data, angle)
         self.time_stamp = np.roll(self.time_stamp, angle)
-
-    def find_nearest(
-        self, from_: int = 0, to_: int = 359, num=1, range_limit: int = 1e7, view=None
-    ) -> List[Point_2D]:
-        """
-        在给定范围内查找给定个数的最近点
-        from_: int 起始角度
-        to_: int 结束角度(包含)
-        num: int 查找点的个数
-        view: numpy视图, 当指定时上述参数仅num生效
-        """
-        if view is None:
-            view = (self.data < range_limit) & (self.data != -1)
-            from_ %= 360
-            to_ %= 360
-            if from_ > to_:
-                view[to_ + 2: from_] = False
-            else:
-                view[to_ + 2: 360] = False
-                view[:from_] = False
-        deg_arr = np.where(view)[0]
-        data_view = self.data[view]
-        p_num = len(deg_arr)
-        if p_num == 0:
-            return []
-        elif p_num <= num:
-            sort_view = np.argsort(data_view)
-        else:
-            sort_view = np.argpartition(data_view, num)[:num]
-        points = []
-        for index in sort_view:
-            points.append(Point_2D(deg_arr[index], data_view[index]))
-        return points
-
-    def find_nearest_with_ext_point_opt(
-        self, from_: int = 0, to_: int = 359, num=1, range_limit: int = 1e7
-    ) -> List[Point_2D]:
-        """
-        在给定范围内查找给定个数的最近点, 只查找极值点
-        from_: int 起始角度
-        to_: int 结束角度(包含)
-        num: int 查找点的个数
-        range_limit: int 距离限制
-        """
-        view = (self.data < range_limit) & (self.data != -1)
-        from_ %= 360
-        to_ %= 360
-        if from_ > to_:
-            view[to_ + 2: from_] = False
-        else:
-            view[to_ + 2: 360] = False
-            view[:from_] = False
-        data_view = self.data[view]
-        deg_arr = np.where(view)[0]
-        peak = find_peaks(-data_view)[0]
-        if len(data_view) > 2:
-            if data_view[-1] < data_view[-2]:
-                peak = np.append(peak, len(data_view) - 1)
-        peak_deg = deg_arr[peak]
-        new_view = np.zeros(360, dtype=bool)
-        new_view[peak_deg] = True
-        return self.find_nearest(from_, to_, num, range_limit, new_view)
-
-    def find_two_point_with_given_distance(
-        self,
-        from_: int,
-        to_: int,
-        distance: int,
-        range_limit: int = 1e7,
-        threshold: int = 15,
-    ) -> List[Point_2D]:
-        """
-        在给定范围内查找两个给定距离的点
-        from_: int 起始角度
-        to_: int 结束角度(包含)
-        distance: int 给定的两点之间的距离
-        range_limit: int 距离限制
-        threshold: int 允许的距离误差
-        """
-        fd_points = self.find_nearest(from_, to_, 20, range_limit)
-        num = len(fd_points)
-        get_list = []
-        if num >= 2:
-            for i in range(num):
-                for j in range(i + 1, num):
-                    vector = fd_points[i].to_xy() - fd_points[j].to_xy()
-                    delta_dis = np.sqrt(vector.dot(vector))
-                    if abs(delta_dis - distance) < threshold:
-                        deg = (
-                            abs(
-                                fd_points[i].to_180_degree()
-                                + fd_points[j].to_180_degree()
-                            )
-                            / 2
-                        )
-                        dis = (fd_points[i].distance +
-                               fd_points[j].distance) / 2
-                        get_list.append((fd_points[i], fd_points[j], dis, deg))
-            if len(get_list) > 0:
-                get_list.sort(key=lambda x: x[2])  # 按距离排序
-                get_list.sort(key=lambda x: x[3])  # 按角度排序
-                return list(get_list[0][:2])
-        return []
 
     def draw_on_cv_image(
         self,
@@ -398,6 +294,9 @@ class Map_360(object):
         return img
 
     def output_cloud(self, scale: float = 0.1, size=800) -> np.ndarray:
+        """
+        输出点云图
+        """
         black_img = np.zeros((size, size, 1), dtype=np.uint8)
         center_point = np.array([size // 2, size // 2])
         points_pos = (
@@ -438,5 +337,3 @@ class Map_360(object):
 
     def __repr__(self):
         return self.__str__()
-
-
