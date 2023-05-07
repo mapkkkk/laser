@@ -4,7 +4,7 @@ from time import time
 from ProtocolMCU.Application import class_application
 from time import sleep
 from others.Logger import logger
-from RadarDrivers.RadarDriver import LD_Radar
+from RadarDrivers_reconstruct.RadarMapApplication import radar_map_application
 from simple_pid import PID
 from Vision.mission1_vision import img_mapping_system
 """
@@ -19,7 +19,7 @@ from Vision.mission1_vision import img_mapping_system
 
 
 class Mission_General:
-    def __init__(self, fc: class_application, camera: cv.VideoCapture, radar: LD_Radar):
+    def __init__(self, fc: class_application, camera: cv.VideoCapture, radar: radar_map_application):
         '''
         完成基本的实例的定义
         完成底层初始化
@@ -46,7 +46,7 @@ class Mission_General:
             output_limits=(-30, 30),
             auto_mode=False,
         )
-        self.height_pid.SetPoint = 140  # 定高140cm
+        self.height_pid.setpoint = 140  # 定高140cm
         self.pos_x_pid = PID(
             0.4,
             0,
@@ -132,7 +132,7 @@ class Mission_General:
         self.fc.wait_for_hovering(2)
         # 闭环定高
         self.fc.set_flight_mode(self.fc.HOLD_POS_MODE)
-        self.height_pid.SetPoint = self.cruise_height
+        self.height_pid.setpoint = self.cruise_height
         self.keep_height_flag = True
         sleep(2)
         self.navigation_to_waypoint(point)  # 设置路径点(认为是当前位置)
@@ -166,8 +166,8 @@ class Mission_General:
         self.fc.lock()
 
     def navigation_to_waypoint(self, waypoint):
-        self.pos_x_pid.SetPoint = waypoint[0]
-        self.pos_y_pid.SetPoint = waypoint[1]
+        self.pos_x_pid.setpoint = waypoint[0]
+        self.pos_y_pid.setpoint = waypoint[1]
 
     def set_navigation_speed(self, speed):
         speed = abs(speed)
@@ -227,7 +227,8 @@ class Mission_General:
                     )
                     logger.info("[MISSION] Resolve pose started")
                     sleep(0.01)
-                if self.radar.rt_pose_update_event.wait(1):  # 等待地图更新,这个event是给这个线程用的
+                # 等待地图更新,这个event是给这个线程用的
+                if self.radar.rt_pose_update_event.wait(1):
                     self.radar.rt_pose_update_event.clear()     # 地图更新，重新上锁，等待再次set
                     current_x = self.radar.rt_pose[0]
                     current_y = self.radar.rt_pose[1]

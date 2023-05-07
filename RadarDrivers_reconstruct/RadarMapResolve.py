@@ -1,48 +1,91 @@
 import numpy as np
 import cv2
-import time
 from scipy.signal import find_peaks
-from typing import List, Optional, Tuple, Literal
+from typing import List, Literal
 from RadarDrivers_reconstruct.RadarMapBase import Point_2D
 from RadarDrivers_reconstruct.RadarSerialUpdater import radar_serial_updater
-from others.Logger import logger
+
+
+def get_point_line_distance(
+        x1, y1, x2, y2, x3, y3, line_type: Literal[0, 1] = 0
+) -> tuple[float, float]:
+    """
+    计算点到线的距离
+    p1: 目标点
+    p2: 线的一个端点
+    p3: 线的另一个端点
+    type: 0: 右侧线, 1: 下侧线
+    return: 距离, 角度
+    """
+
+    theta = 0
+
+    def deg_180_90(deg):
+        if deg > 90:
+            deg = deg - 180
+        return deg
+
+    distance = abs((y3 - y2) * x1 - (x3 - x2) * y1 + x3 * y2 - y3 * x2) / np.sqrt(
+        (y3 - y2) ** 2 + (x3 - x2) ** 2
+    )
+    if line_type == 0:
+        theta = deg_180_90(
+            (np.pi / 2 + np.arctan((y3 - y2) / (x3 - x2 + 0.0000001))) * 180 / np.pi
+        )
+    elif line_type == 1:
+        theta = np.arctan((y3 - y2) / (x3 - x2 + 0.0000001)) * 180 / np.pi
+    return distance, theta
 
 
 class radar_map_resolve(radar_serial_updater):
+    """
+    雷达点云图像解析器
+    """
+
     def __init__(self) -> None:
         super().__init__()
 
-    def radar_resolve_rt_pose(self, img, DEBUG=False):
+    def map_visual_resolve_rt_pose(self, rtpose_size, rtpose_scale_ratio, DEBUG=False):
         """
         从雷达点云图像中解析出中点位置
         img: 雷达点云图像(灰度图)
         _DEBUG: 显示解析结果
         return: 位姿(x,y,yaw)
         """
-        ############ 参数设置##############
-        KERNAL_DI = 9
-        KERNAL_ER = 5
-        HOUGH_THRESHOLD = 80
-        MIN_LINE_LENGTH = 60
-        #################################
+        # 参数设置
+        kernal_di = 9
+        kernal_er = 5
+        hough_threshold = 80
+        min_line_length = 60
+
+        # 二值化
         kernel_di = cv2.getStructuringElement(
-            cv2.MORPH_ELLIPSE, (KERNAL_DI, KERNAL_DI))
+            cv2.MORPH_ELLIPSE, (kernal_di, kernal_di))
         kernel_er = cv2.getStructuringElement(
-            cv2.MORPH_ELLIPSE, (KERNAL_ER, KERNAL_ER))
+            cv2.MORPH_ELLIPSE, (kernal_er, kernal_er))
+
+        # 获取图像
+        img = self.output_cloud(
+            size=int(rtpose_size),
+            scale=0.1 * rtpose_scale_ratio,
+        )
         img = cv2.dilate(img, kernel_di)  # 膨胀
         img = cv2.erode(img, kernel_er)  # 腐蚀
+        # 霍夫变换
         lines = cv2.HoughLinesP(
             img,
             1,
             np.pi / 180,
-            threshold=HOUGH_THRESHOLD,
-            minLineLength=MIN_LINE_LENGTH,
+            threshold=hough_threshold,
+            minLineLength=min_line_length,
             maxLineGap=200,
         )
         size = img.shape
         x0, y0 = size[0] // 2, size[1] // 2
+
         if DEBUG:
             img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+
         x_out = None
         y_out = None
         yaw_out_1 = None
@@ -53,24 +96,25 @@ class radar_map_resolve(radar_serial_updater):
             for line in lines:
                 x1, y1, x2, y2 = line[0]
                 if (
-                    x1 > x0 and x2 > x0 and (
-                        (y1 > y0 and y2 < y0) or (y1 < y0 and y2 > y0))
+                        x1 > x0 and x2 > x0 and (
+                        (y1 > y0 > y2) or (y1 < y0 < y2))
                 ):  # 右侧线
                     if x1 > x2:
                         right_lines.append((x2, y2, x1, y1))
                     else:
                         right_lines.append((x1, y1, x2, y2))
                 elif (
-                    y1 > y0 and y2 > y0 and (
-                        (x1 > x0 and x2 < x0) or (x1 < x0 and x2 > x0))
+                        y1 > y0 and y2 > y0 and (
+                        (x1 > x0 > x2) or (x1 < x0 < x2))
                 ):  # 下侧线
                     if y1 > y2:
                         back_lines.append((x2, y2, x1, y1))
                     else:
                         back_lines.append((x1, y1, x2, y2))
+
         for line in right_lines:
             x1, y1, x2, y2 = line
-            dis, yaw = self.get_point_line_distance(x0, y0, x1, y1, x2, y2, 0)
+            dis, yaw = get_point_line_distance(x0, y0, x1, y1, x2, y2, 0)
             if y_out is None or dis < y_out:
                 y_out = dis
                 yaw_out_1 = -yaw
@@ -78,7 +122,7 @@ class radar_map_resolve(radar_serial_updater):
                 cv2.line(img, (x1, y1), (x2, y2), (255, 255, 0), 2)
         for line in back_lines:
             x1, y1, x2, y2 = line
-            dis, yaw = self.get_point_line_distance(x0, y0, x1, y1, x2, y2, 1)
+            dis, yaw = get_point_line_distance(x0, y0, x1, y1, x2, y2, 1)
             if x_out is None or dis < x_out:
                 x_out = dis
                 yaw_out_2 = -yaw
@@ -92,6 +136,7 @@ class radar_map_resolve(radar_serial_updater):
             yaw_out = yaw_out_2
         else:
             yaw_out = None
+
         if DEBUG:
             x_ = x_out if x_out else -1
             y_ = y_out if y_out else -1
@@ -116,36 +161,8 @@ class radar_map_resolve(radar_serial_updater):
             cv2.imshow("Map Resolve", img)
         return x_out, y_out, yaw_out
 
-    def get_point_line_distance(
-        self, x1, y1, x2, y2, x3, y3, type: Literal[0, 1] = 0
-    ) -> tuple[float, float]:
-        """
-        计算点到线的距离
-        p1: 目标点
-        p2: 线的一个端点
-        p3: 线的另一个端点
-        type: 0: 右侧线, 1: 下侧线
-        return: 距离, 角度
-        """
-
-        def deg_180_90(deg):
-            if deg > 90:
-                deg = deg - 180
-            return deg
-
-        distance = abs((y3 - y2) * x1 - (x3 - x2) * y1 + x3 * y2 - y3 * x2) / np.sqrt(
-            (y3 - y2) ** 2 + (x3 - x2) ** 2
-        )
-        if type == 0:
-            theta = deg_180_90(
-                (np.pi / 2 + np.arctan((y3 - y2) / (x3 - x2 + 0.0000001))) * 180 / np.pi
-            )
-        elif type == 1:
-            theta = np.arctan((y3 - y2) / (x3 - x2 + 0.0000001)) * 180 / np.pi
-        return (distance, theta)
-
     def find_nearest(
-        self, from_: int = 0, to_: int = 359, num=1, range_limit: int = 10000000, view=None
+            self, from_: int = 0, to_: int = 359, num=1, range_limit: int = 10000000, view=None
     ) -> List[Point_2D]:
         """
         在给定范围内查找给定个数的最近点
@@ -174,11 +191,11 @@ class radar_map_resolve(radar_serial_updater):
             sort_view = np.argpartition(data_view, num)[:num]
         points = []
         for index in sort_view:
-            points.append(Point_2D(deg_arr[index], data_view[index]))
+            points.append(Point_2D(int(deg_arr[index]), int(data_view[index])))
         return points
 
     def find_nearest_with_ext_point_opt(
-        self, from_: int = 0, to_: int = 359, num=1, range_limit: int = 10000000
+            self, from_: int = 0, to_: int = 359, num=1, range_limit: int = 10000000
     ) -> List[Point_2D]:
         """
         在给定范围内查找给定个数的最近点, 只查找极值点
@@ -207,12 +224,12 @@ class radar_map_resolve(radar_serial_updater):
         return self.find_nearest(from_, to_, num, range_limit, new_view)
 
     def find_two_point_with_given_distance(
-        self,
-        from_: int,
-        to_: int,
-        distance: int,
-        range_limit: int = 10000000,
-        threshold: int = 15,
+            self,
+            from_: int,
+            to_: int,
+            distance: int,
+            range_limit: int = 10000000,
+            threshold: int = 15,
     ) -> List[Point_2D]:
         """
         在给定范围内查找两个给定距离的点

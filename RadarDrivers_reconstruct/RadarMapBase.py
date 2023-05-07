@@ -1,19 +1,18 @@
-import struct
 import time
-from typing import List, Optional, Tuple
+from typing import List, Tuple
 import cv2
 import numpy as np
-from scipy.signal import find_peaks
-from others.Logger import logger
-
 
 """
-雷达点云图解决方案，输出所需的图像
-觉得量大?那肯定啊,我也觉得——HZW
+完成雷达的基本用法定义
+内容：
+    1.雷达的基本数据结构
+    2.雷达的地图基本类
 """
 
 
 class Point_2D:
+
     """
     有大量的object的类函数
     这个类作为点云图里的每个点的存在
@@ -21,6 +20,7 @@ class Point_2D:
     这个类是作为数据存在的，其中的方法是为了数据服务的
     参考之前的Data里的c_like类型,那个叫Byte啥的东西
     """
+
     degree = 0.0  # 0.0 ~ 359.9, 0 指向前方, 顺时针
     distance = 0  # 距离 mm
     confidence = 0  # 置信度 典型值=200
@@ -109,7 +109,7 @@ class Point_2D:
         """
         if not isinstance(other, Point_2D):
             raise TypeError("Point_2D can only add with Point_2D")
-        return Point_2D().from_xy(self.to_xy() + other.to_xy())     # 毕竟得作为xy坐标系才好加嘛
+        return Point_2D().from_xy(self.to_xy() + other.to_xy())  # 毕竟得作为xy坐标系才好加嘛
 
     def __sub__(self, other):
         """
@@ -133,6 +133,7 @@ class Radar_Package(object):
     points = [Point_2D() for _ in range(12)]  # 12个点的数据
     stop_degree = 0.0  # 扫描结束角度
     time_stamp = 0  # 时间戳 ms 记满30000后重置
+    recent_update_result = False  # 最近更新结果
 
     def __init__(self, datas=None):
         if datas is not None:
@@ -152,7 +153,7 @@ class Radar_Package(object):
     def __str__(self):
         string = (
             f"--- Radar Package < TS = {self.time_stamp:05d} ms > ---\n"
-            f"Range: {self.start_degree:06.2f}° -> {self.stop_degree:06.2f}° {self.rotation_spd/360:3.2f}rpm\n"
+            f"Range: {self.start_degree:06.2f}° -> {self.stop_degree:06.2f}° {self.rotation_spd / 360:3.2f}rpm\n"
         )
         for n, point in enumerate(self.points):
             string += f"#{n:02d} {point}\n"
@@ -167,33 +168,34 @@ class Map_360(object):
     """
     将点云数据映射到一个360度的圆上
     每个数据是Point_2D(再次强调)
-    包括了很多功能，例如找最近点，但是我觉着这个应该更加区分才行。。。
-    有时间第一个就得重构这个
+    请复习python-numpy的基本知识
     """
 
-    data = np.ones(360, dtype=np.int64) * -1  # set -1: 无效 1: 有效
+    # set -1: 无效 1: 有效, 360度的数据, 内容为距离(单位cm)
+    data = np.ones(360, dtype=np.int64) * -1
     time_stamp = np.zeros(360, dtype=np.float64)  # 时间戳
-    ######### 映射方法 ########
+    # 映射方法
     MODE_MIN = 0  # 在范围内选择最近的点更新
     MODE_MAX = 1  # 在范围内选择最远的点更新
     MODE_AVG = 2  # 计算平均值更新
     update_mode = MODE_MIN
-    ######### 设置 #########
+    # 设置
     confidence_threshold = 140  # 置信度阈值
     distance_threshold = 10  # 距离阈值
     timeout_clear = True  # 超时清除
     timeout_time = 1  # 超时时间 s
-    ######### 状态 #########
+    # 状态
     rotation_spd = 0  # 转速 rpm
     update_count = 0  # 更新计数
-    ####### 辅助计算 #######
+    # 辅助计算
     _rad_arr = np.deg2rad(np.arange(0, 360))  # 弧度
     _deg_arr = np.arange(0, 360)  # 角度
-    _sin_arr = np.sin(_rad_arr)
-    _cos_arr = np.cos(_rad_arr)
+    _sin_arr = np.sin(_rad_arr)  # 正弦(每个角度的正弦值)
+    _cos_arr = np.cos(_rad_arr)  # 余弦(每个角度的余弦值)
+    # 子类线程
+    thread_list = []   # 线程列表
 
     def __init__(self):
-        pass
 
     def update(self, data: Radar_Package):
         """
@@ -202,8 +204,8 @@ class Map_360(object):
         deg_values_dict = {}
         for point in data.points:
             if (
-                point.distance < self.distance_threshold
-                or point.confidence < self.confidence_threshold
+                    point.distance < self.distance_threshold
+                    or point.confidence < self.confidence_threshold
             ):
                 continue
             base = int(point.degree + 0.5)  # 四舍五入
@@ -212,8 +214,8 @@ class Map_360(object):
             for deg in degs:
                 deg %= 360
                 if deg not in deg_values_dict:
-                    deg_values_dict[deg] = set()    # 就当集合处理
-                deg_values_dict[deg].add(point.distance)    # 添加扫描点的距离
+                    deg_values_dict[deg] = set()  # 就当集合处理
+                deg_values_dict[deg].add(point.distance)  # 添加扫描点的距离
         # 过滤，三种方法，保证每个方向上只有一个点
         for deg, values in deg_values_dict.items():
             if self.update_mode == self.MODE_MIN:
@@ -253,15 +255,18 @@ class Map_360(object):
         self.time_stamp = np.roll(self.time_stamp, angle)
 
     def draw_on_cv_image(
-        self,
-        img: np.ndarray,
-        scale: float = 1,
-        color: tuple = (0, 0, 255),
-        point_size: int = 1,
-        add_points: List[Point_2D] = [],
-        add_points_color: tuple = (0, 255, 255),
-        add_points_size: int = 1,
+            self,
+            img: np.ndarray,
+            scale: float = 1,
+            color: tuple = (0, 0, 255),
+            point_size: int = 1,
+            add_points: List[Point_2D] = None,
+            add_points_color: tuple = (0, 255, 255),
+            add_points_size: int = 1,
     ):
+        """
+        用cv在图像上绘制
+        """
         img_size = img.shape
         center_point = np.array([img_size[1] / 2, img_size[0] / 2])
         points_pos = (
@@ -295,24 +300,28 @@ class Map_360(object):
 
     def output_cloud(self, scale: float = 0.1, size=800) -> np.ndarray:
         """
-        输出点云图
+        输出点云图像
+        scale: 缩放比例
+        size: 输出图像大小
         """
-        black_img = np.zeros((size, size, 1), dtype=np.uint8)
-        center_point = np.array([size // 2, size // 2])
+        black_img = np.zeros((size, size, 1), dtype=np.uint8)   # 创建黑色图像
+        center_point = np.array([size // 2, size // 2])  # 中心点
         points_pos = (
             np.array(
                 [
                     self.data * self._sin_arr,
-                    -self.data * self._cos_arr,
+                    -self.data * self._cos_arr,  # 坐标系转换(匿名坐标系横轴取反)
                 ]
             )
             * scale
-        )
+        )   # 计算点的位置
+
         for n in range(360):
             pos = points_pos[:, n] + center_point
             if self.data[n] != -1:
                 if 0 <= pos[0] < size and 0 <= pos[1] < size:
                     black_img[int(pos[1]), int(pos[0])] = 255
+
         return black_img
 
     def get_distance(self, angle: int) -> int:

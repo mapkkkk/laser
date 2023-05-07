@@ -2,8 +2,7 @@
 import cv2 as cv
 from time import sleep
 from ProtocolMCU.Application import class_application
-# from RadarDrivers.RadarDriver import LD_Radar
-# from RadarDrivers.RadarDriver import LD_Radar
+from RadarDrivers_reconstruct.Radar import Radar
 from others.Logger import logger
 import os
 import sys
@@ -21,6 +20,7 @@ HZW
 port = '/dev/ttyAMA0'
 DEBUG = False
 
+
 def self_reboot():
     logger.info("[MANAGER] Manager Restarting")
     os.execl(sys.executable, sys.executable, *sys.argv)
@@ -30,7 +30,7 @@ def self_reboot():
 try:
     fc = class_application()
     # logger.warning("[FC] init done")
-    fc.start_listen_serial(serial_port=port)# 建立MCU连接
+    fc.start_listen_serial(serial_port=port)  # 建立MCU连接
     logger.warning("[FC] start listen serial")
     fc.wait_for_connection(5)   # 等待连接,未连接则返回错误值
 except:
@@ -62,76 +62,51 @@ except:
     logger.warning("[MANAGER] Camera Opening Failed")
 
 # 尝试初始化雷达
-# try:
-#     radar = LD_Radar()
-#     radar.start(
-#         "/dev/ttyUSB0", "LD06",
-#     )
-# except:
-#     logger.warning("[MANAGER] Radar Connecting Failed")
-#
-# logger.info("[MANAGER] Self-Checking Passed")
+try:
+    radar = Radar()
+    radar.start(
+        "/dev/ttyUSB0", "LD06",
+    )
+except:
+    logger.warning("[MANAGER] Radar Connecting Failed")
 
+logger.info("[MANAGER] Self-Checking Passed")
 
-# if DEBUG:
-#     while(True):
-#         print(fc.state.mode.value, fc.state.rol.value, fc.state.alt.value)
-#         sleep(1)
 ##################### 开始任务 ####################
-sleep(5)
-
 logger.info("[MANAGER] Target Mission: 2")
-if DEBUG:
-    while(True):
-        print(fc.state.mode.value, fc.state.rol.value, fc.state.alt.value)
-        sleep(1)
 # 本地模式请务必设置目标任务
 mission = None
 target_mission = 2
 
-# try:
-if target_mission == None:
-    logger.info("[MANAGER] No Target Mission Set")
-# elif target_mission == 1:
-#     from Mission1 import Mission
-elif target_mission == 2:
-    from Mission2 import Mission
-# elif target_mission = 0:
-    # from visionTest import vision_test
-    mission = Mission(_fc=fc, camera=cam)
-    logger.info("[MANAGER] Calling Mission")
+try:
+    if target_mission == None:
+        logger.info("[MANAGER] No Target Mission Set")
+    elif target_mission == 1:
+        from Mission1 import Mission
+    elif target_mission == 2:
+        from Mission2 import Mission
+    # elif target_mission = 0:
+        # from visionTest import vision_test
+        mission = Mission(_fc=fc, camera=cam)
+        logger.info("[MANAGER] Calling Mission")
 
-    # keyboard.wait('1')
-    # logger.info("[MANAGER] Start Task One")
-    # sleep(5)
-    # mission.run_height_task()
-    # logger.info("[MANAGER] Task One Finished")
-    #
-    # keyboard.wait('2')
-    # logger.info("[MANAGER] Start Task Two")
-    # sleep(5)
-    # mission.run_task_one()
-    # logger.info("[MANAGER] Task Two Finished")
-    keyboard.wait('3')
-    sleep(5)
-    logger.info("[MANAGER] Start Task Two")
-    mission.run_task_two()
+        mission.run_task_one()
 
-    logger.info("[MANAGER] Mission Finished")
-# except:
-#     logger.error("[MANAGER] Mission Failed, FXXK")
+        logger.info("[MANAGER] Mission Finished")
+except:
+    logger.error("[MANAGER] Mission Failed, FXXK")
 
-# finally:
-#     if mission is not None:
-#         mission.stop()
-#     if fc.state.unlock.value:
-#         logger.warning("[MANAGER] Auto Landing")
-#         fc.set_flight_mode(fc.PROGRAM_MODE)
-#         fc.stabilize()
-#         fc.land()
-#         ret = fc.wait_for_lock()
-#         if not ret:
-#             fc.lock()
+finally:
+    if mission is not None:
+        mission.stop()
+    if fc.state.unlock.value:
+        logger.warning("[MANAGER] Auto Landing")
+        fc.set_flight_mode(fc.PROGRAM_MODE)
+        fc.stabilize()
+        fc.land()
+        ret = fc.wait_for_lock()
+        if not ret:
+            fc.lock()
 
 ################## 结束任务 ###############
 fc.quit()

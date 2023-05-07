@@ -32,13 +32,47 @@ class radar_serial_updater(Map_360):
     ]  # fmt: skip
 
     def __init__(self):
-        self.running = False
-        self.thread_list = []
-        self._package = Radar_Package()
-        self._serial = serial.Serial()
+        super().__init__()
+        self.serial_running = False
+        self.package = Radar_Package()
+        self.serial = serial.Serial()
         self._update_callback = None
         self._map_updated_event = threading.Event()
-        self._radar_unpack_fmt = "<HH" + "HB" * 12 + "HH"  # 雷达数据解析格式
+        self.radar_unpack_fmt = "<HH" + "HB" * 12 + "HH"  # 雷达数据解析格式
+
+    def start_serial_task(self, com_port, radar_type: str = "LD06"):
+        """
+        开始监听雷达数据
+        radar_type: LD08 or LD06
+        update_callback: 回调函数，每次更新雷达数据时调用
+        """
+        if self.serial_running:
+            self.serial_stop()
+        if radar_type == "LD08":
+            baudrate = 115200
+        elif radar_type == "LD06":
+            baudrate = 230400
+        else:
+            raise ValueError("Unknown radar type")
+        self.serial = serial.Serial(com_port, baudrate=baudrate)
+        self.serial_running = True
+        thread = threading.Thread(target=self.read_serial_task)
+        thread.daemon = True
+        thread.start()
+        self.thread_list.append(thread)
+        logger.info("[radar] serial task start")
+
+    def serial_stop(self, joined=False):
+        """
+        停止监听雷达数据
+        """
+        self.serial_running = False
+        if joined:
+            thread = self.thread_list[0]
+            thread.join()  # 日常解释join():认为是让主线程等待其执行完，其实就是在没执行完其中一个线程时，这句话就不会继续往下走
+        if self.serial is not None:
+            self.serial.close()
+        logger.info("[RADAR] Stopped serial threads")
 
     def read_serial_task(self):
         """
@@ -49,11 +83,11 @@ class radar_serial_updater(Map_360):
         package_length = 45
         read_buffer = bytes()
         wait_buffer = bytes()
-        while self.running:
+        while self.serial_running:
             try:
-                if self._serial.in_waiting > 0:
+                if self.serial.in_waiting > 0:
                     if not reading_flag:  # 等待包头
-                        wait_buffer += self._serial.read(1)
+                        wait_buffer += self.serial.read(1)
                         if len(wait_buffer) >= 2:
                             if wait_buffer[-2:] == start_bit:
                                 reading_flag = True
@@ -61,13 +95,16 @@ class radar_serial_updater(Map_360):
                                 wait_buffer = bytes()
                                 read_buffer = start_bit
                     else:  # 读取数据
-                        read_buffer += self._serial.read(package_length)
+                        read_buffer += self.serial.read(package_length)
                         reading_flag = False
                         # 直接传入写在RadarResolver中的解析函数解析(这里之前写的有问题（但可能是我有问题））
-                        self._package = self.resolve_radar_data(
-                            read_buffer, self._package)
-                        self.update(self._package)
-                        self._map_updated_event.set()  # 保证有输入之后才更新地图，减少占用，其实可以理解为两个线程之间的同步过程
+                        self.package = self.resolve_radar_data(
+                            read_buffer, self.package)
+                        if self.package.recent_update_result:
+                            self.update(self.package)
+                            self._map_updated_event.set()   # 保证有输入之后才更新地图，减少占用，其实可以理解为两个线程之间的同步过程
+                        else:
+                            logger.error("[RADAR] Map Update Error")
                         if self._update_callback is not None:
                             self._update_callback()
                 else:
@@ -86,18 +123,24 @@ class radar_serial_updater(Map_360):
         """
         if len(data) != 47:  # fixed length of radar data
             logger.warning(f"[RADAR] Invalid data length: {len(data)}")
-            return None
+            to_package.recent_update_result = False
+            return to_package
         if self.calculate_crc8(data[:-1]) != data[-1]:
             logger.warning("[RADAR] Invalid CRC8")
-            return None
+            to_package.recent_update_result = False
+            return to_package
         if data[:2] != b"\x54\x2C":
             logger.warning(f"[RADAR] Invalid header: {data[:2]:X}")
-            return None
-        datas = struct.unpack(self._radar_unpack_fmt, data[2:-1])
+            to_package.recent_update_result = False
+            return to_package
+        datas = struct.unpack(self.radar_unpack_fmt, data[2:-1])
         if to_package is None:
-            return Radar_Package(datas)
+            to_package = Radar_Package(datas)
+            to_package.recent_update_result = True
+            return to_package
         else:
             to_package.fill_data(datas)
+            to_package.recent_update_result = True
             return to_package
 
     def calculate_crc8(self, data: bytes) -> int:
