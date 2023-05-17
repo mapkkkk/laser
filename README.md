@@ -26,7 +26,7 @@ manager作为主进程运行，部署在树莓派上
 * mission1：植保无人机（进行中）
 * vision_onnx：部署问题（搁置）
 * vision_cv：代码积累（done）
-* Radar: 代码重构（进行中）
+* Radar: 代码重构（已完成）
 * Vision_mission: 相机重构（方向：类Radar）（进行中）
 
 ## 致谢
