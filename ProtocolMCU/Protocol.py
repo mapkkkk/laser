@@ -97,7 +97,7 @@ class class_protocol(base_communicate):
         蜂鸣器控制
         """
         self.byte_temp1.reset(0x01, "u8", int)
-        self.send_command(0x02, self.byte_temp1.bytes, need_ack=False)
+        self.send_command(0x02, self.byte_temp1.bytes, need_ack=True)
 
     def stop_beep(self):
         """

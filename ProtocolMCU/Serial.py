@@ -20,9 +20,9 @@ python的串口开启有定时, 如果一直开启会发生啥?
 class FC_Serial:
 
     def __init__(self, port, baudrate, timeout=0.5, byteOrder=sys_byteorder):
-        self.send_start_bit = None
-        self.send_option_bit = None
-        self.read_start_bit = None
+        self.send_start_bit = [0xAA]
+        self.send_option_bit = [0x00]
+        self.read_start_bit = [0xAA]
         self.read_flag = False
         self.ser = serial.Serial(port, baudrate, timeout=timeout)
         self.read_buffer = bytes()
@@ -31,15 +31,15 @@ class FC_Serial:
         self.byte_order = byteOrder
         self.frame_count = 0
         self.frame_length = 0
-        self.frame_length_bit = None
+        self.frame_length_bit = 0
         # self.send_config()
         # self.read_config()
 
-    def send_config(self, startBit, optionBit):
+    def send_config(self, startBit: list, optionBit: list):
         self.send_start_bit = startBit
         self.send_option_bit = optionBit
 
-    def read_config(self, startBit):
+    def read_config(self, startBit: list):
         self.read_start_bit = startBit
 
     def read_one_bit(self):

@@ -80,9 +80,10 @@ class base_communicate(object):
                     data = _data[1:]
                     if cmd == 0x01:  # 状态回传
                         self._update_state(data)
-                    elif cmd == 0x02:  # ACK返回
+                    if cmd == 0x02:  # ACK返回
                         self._received_ack = data[0]
                         self._waiting_ack = False
+                        # logger.info(f"[FC] received ack: {time.time()}")
             except Exception:
                 logger.error(
                     f"[FC] listen serial exception: {traceback.format_exc()}")
@@ -112,8 +113,8 @@ class base_communicate(object):
             bytes: 实际发送的数据帧
         """
 
-        check_ack = None
-        send_time = None
+        check_ack = 0
+        send_time = time.time()
         if need_ack:
             if _ack_retry_count is None:
                 _ack_retry_count = self.settings.ack_max_retry
@@ -138,16 +139,21 @@ class base_communicate(object):
         self._send_lock.release()
 
         if need_ack:
+            # logger.info(f"[FC] send_time: {send_time}")
             while self._waiting_ack:
                 if time.time() - send_time > self.settings.wait_ack_timeout:
-                    logger.warning("[FC] ACK timeout, retrying")
+                    logger.warning(f"[FC] ACK timeout, retrying, {time.time()}")
+                    print(option)
                     return self.send_data_to_fc(data, option, need_ack,
                                                 _ack_retry_count - 1)
                 time.sleep(0.001)
+
             if self._received_ack is None or self._received_ack != check_ack:
                 logger.warning("[FC] ACK not received or invalid, retrying")
                 return self.send_data_to_fc(data, option, need_ack,
                                             _ack_retry_count - 1)
+            else:
+                logger.info("[FC] ack_pass")
         return sent
 
     # 退出函数

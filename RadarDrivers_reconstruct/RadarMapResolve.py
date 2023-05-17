@@ -40,6 +40,7 @@ def get_point_line_distance(
 class radar_map_resolve(radar_serial_updater):
     """
     雷达点云图像解析器
+    一些基本的解析办法
     """
 
     def __init__(self) -> None:
@@ -56,7 +57,7 @@ class radar_map_resolve(radar_serial_updater):
         kernal_di = 9
         kernal_er = 5
         hough_threshold = 80
-        min_line_length = 60
+        min_line_length = 40
 
         # 二值化
         kernel_di = cv2.getStructuringElement(
@@ -159,6 +160,7 @@ class radar_map_resolve(radar_serial_updater):
                 1,
             )
             cv2.imshow("Map Resolve", img)
+            cv2.waitKey(1)
         return x_out, y_out, yaw_out
 
     def find_nearest(

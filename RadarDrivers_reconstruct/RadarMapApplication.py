@@ -80,7 +80,7 @@ class radar_map_application(radar_map_resolve):
                     if self._rtpose_flag:
                         x, y, yaw = self.map_visual_resolve_rt_pose(
                             self._rtpose_size, self._rtpose_scale_ratio)
-                        
+
                         if x is not None:
                             if self._rt_pose_inited[0]:
                                 self.rt_pose[0] += (
@@ -107,7 +107,7 @@ class radar_map_application(radar_map_resolve):
                             else:
                                 self.rt_pose[2] = yaw
                                 self._rt_pose_inited[2] = True
-                        self.rt_pose_update_event.set() # 通知位姿更新
+                        self.rt_pose_update_event.set()  # 通知位姿更新
                 else:
                     logger.warning("[RADAR] Map resolve thread wait timeout")
             except Exception as e:

@@ -10,6 +10,12 @@ class radar_debug(radar_map_application):
     def __init__(self):
         super().__init__()
 
+    def start(self, com_port: str, radar_type: str = "LD06") -> None:
+        # 开始监听串口
+        self.start_serial_task(com_port=com_port, radar_type=radar_type)
+        # 开始地图解算
+        self.start_pose_task()
+
     def init_radar_map(self):
         """
         初始化雷达地图

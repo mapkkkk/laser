@@ -25,7 +25,7 @@ class Point_2D:
     distance = 0  # 距离 mm
     confidence = 0  # 置信度 典型值=200
 
-    def __init__(self, degree=0, distance=0, confidence=None):
+    def __init__(self, degree=0, distance=0, confidence=0):
         self.degree = degree
         self.distance = distance
         self.confidence = confidence
@@ -141,9 +141,9 @@ class Radar_Package(object):
 
     def fill_data(self, datas: Tuple[int]):
         self.rotation_spd = datas[0]
-        self.start_degree = datas[1] * 0.01
-        self.stop_degree = datas[26] * 0.01
-        self.time_stamp = datas[27]
+        self.start_degree = datas[int(1)] * 0.01
+        self.stop_degree = datas[int(26)] * 0.01
+        self.time_stamp = datas[int(27)]
         deg_step = (self.stop_degree - self.start_degree) % 360 / 11
         for n, point in enumerate(self.points):
             point.distance = datas[2 + n * 2]
@@ -180,7 +180,7 @@ class Map_360(object):
     MODE_AVG = 2  # 计算平均值更新
     update_mode = MODE_MIN
     # 设置
-    confidence_threshold = 140  # 置信度阈值
+    confidence_threshold = 60  # 置信度阈值
     distance_threshold = 10  # 距离阈值
     timeout_clear = True  # 超时清除
     timeout_time = 1  # 超时时间 s
@@ -196,6 +196,7 @@ class Map_360(object):
     thread_list = []   # 线程列表
 
     def __init__(self):
+        pass
 
     def update(self, data: Radar_Package):
         """

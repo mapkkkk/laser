@@ -9,9 +9,9 @@ import time
 
 # This class is used to store the settings for the FC_Main_Window class.
 class FC_Settings_Struct:
-    wait_ack_timeout = 0.1  # 应答帧超时时间
+    wait_ack_timeout = 0.3  # 应答帧超时时间
     wait_sending_timeout = 0.2  # 发送等待超时时间
-    ack_max_retry = 3  # 应答失败最大重发次数
+    ack_max_retry = 2  # 应答失败最大重发次数
     action_log_output = True  # 是否输出动作日志
     auto_change_mode = True  # 是否自动切换飞控模式以匹配目标动作
 
