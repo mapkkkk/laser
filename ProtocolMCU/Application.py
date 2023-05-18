@@ -77,7 +77,7 @@ class class_application(class_protocol):
                 return False
         return True
 
-    def wait_for_takeoff_done(self, z_speed_threshold=4, timeout_s=5) -> bool:
+    def wait_for_takeoff_done(self, z_speed_threshold=5, timeout_s=5) -> bool:
         """
         等待起飞完成
         """

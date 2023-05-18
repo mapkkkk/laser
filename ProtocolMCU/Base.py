@@ -153,7 +153,8 @@ class base_communicate(object):
                 return self.send_data_to_fc(data, option, need_ack,
                                             _ack_retry_count - 1)
             else:
-                logger.info("[FC] ack_pass")
+                # logger.info("[FC] ack_pass")
+                pass
         return sent
 
     # 退出函数

@@ -28,6 +28,7 @@ class radar_map_application(radar_map_resolve):
         """
         开始使用雷达数据进行位置解算
         """
+        self.pose_running = True
         thread = threading.Thread(target=self.map_resolve_task)
         thread.daemon = True  # 守护线程的意思就是在这个线程运行时，主线程的退出不会导致整个程序的退出，会等到所有守护线程结束
         thread.start()

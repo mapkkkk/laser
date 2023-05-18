@@ -5,10 +5,19 @@ from RadarDrivers_reconstruct.Radar import Radar
 from ProtocolMCU.Application import class_application
 from others.Logger import logger
 from time import sleep, time
-from Vision.ImgProcess import (
-    change_cam_resolution,
-    set_cam_autowb,
-)
+
+point_a = []
+
+point_array_test = [[145, 165],
+                    [295, 165],
+                    [300, 315],
+                    [145, 315]]
+
+point_array = [[], [], [], [],
+               [], [], [], [],
+               [], [], [], [],
+               [], [], [], [],
+               [], [], [], []]
 
 
 class Mission:
@@ -21,9 +30,7 @@ class Mission:
         self.fc = fc
         self.cam = camera
         self.radar = radar
-        self.DEBUG = False
-        self.inital_yaw = self.fc.state.yaw.value
-        self.cruise_height = 120
+        self.DEBUG = True
 
         ########## PID ##########
         self.pid_tunings = {
@@ -46,7 +53,7 @@ class Mission:
             0.08,
             setpoint=0,
             output_limits=(-0.01, 0.01),
-            auto_mode=False,
+            auto_mode=True,
         )
         self.pos_y_pid = PID(
             0.4,
@@ -54,7 +61,7 @@ class Mission:
             0.08,
             setpoint=0,
             output_limits=(-0.01, 0.01),
-            auto_mode=False,
+            auto_mode=True,
         )
         self.yaw_pid = PID(
             0.2,
@@ -62,31 +69,28 @@ class Mission:
             0.0,
             setpoint=0,
             output_limits=(-45, 45),
-            auto_mode=False,
+            auto_mode=True,
         )
+        self.yaw_pid.setpoint = 0
 
         ######### FLAGS #########
         self.keep_height_flag = False   # 定高flag
         self.running_flag = False   # 运行flag
         self.thread_list = []    # 线程列表
         self.navigation_flag = False
-        self.navigation_speed = 35  # 导航速度
-        self.precision_speed = 25  # 精确速度
-        # self.paused = False
-        # vision-debug()
+        self.navigation_speed = 25  # 导航速度
+        self.precision_speed = 15  # 精确速度
+        # self.camera_down_pwm = 32.5
+        # self.camera_up_pwm = 72
+        self.cruise_height = 120  # 巡航高度
 
     # 建立run函数
     def run(self):
         fc = self.fc
-        cam = self.cam
+        # cam = self.cam
         radar = self.radar
         ########### 参数#########
         self.running_flag = True
-        self.camera_down_pwm = 32.5
-        self.camera_up_pwm = 72
-        self.navigation_speed = 25  # 导航速度
-        self.precision_speed = 15  # 精确速度
-        self.cruise_height = 120  # 巡航高度
         ################ 启动线程 ################
         self.running = True
         self.thread_list.append(
@@ -94,35 +98,62 @@ class Mission:
         )
         self.thread_list[-1].start()
         self.thread_list.append(
-            threading.Thread(target=self.navigation_task_radar(), daemon=True)
+            threading.Thread(target=self.navigation_task_radar, daemon=True)
         )
         self.thread_list[-1].start()
+        sleep(4)
         logger.info("[MISSION] Threads started")
+
         ################ 初始化 ################
-        change_cam_resolution(cam, 800, 600)
-        set_cam_autowb(cam, False)  # 关闭自动白平衡
-        for _ in range(10):
-            cam.read()
         fc.set_flight_mode(fc.PROGRAM_MODE)
         self.set_navigation_speed(self.navigation_speed)
         self.fc.start_realtime_control(20)  # 频率20Hz
         self.switch_pid("default")
         BASE_POINT = [self.radar.rt_pose[0], self.radar.rt_pose[1]]
         LANDING_POINT = BASE_POINT
+        logger.info(f"[LADAR] BASE_POINT Set {BASE_POINT}")
+
         ################ 初始化完成 ################
         logger.info("[MISSION] Mission-1 Started")
+        sleep(1)
         self.point_takeoff(BASE_POINT)
+        logger.info("[MISSION] HOLDING POSE")
+        sleep(6)    # 定点自稳测试
+
         ################ 开始任务 ################
+        self.set_navigation_speed(self.navigation_speed)
+        # 前往A点
+        # logger.info("[MISSION] Navigate to Point_a")
+        # self.navigation_to_waypoint(point_a)
+        # self.wait_for_waypoint()
+        # sleep(5)
+
         # 开始按照点一个一个前往
-        for target_point in target_points:
-            x, y = target_point
-            target_point_pos = POINTS_ARR[y, x]
-            self.navigation_to_waypoint(target_point_pos)
+        for target_point in point_array_test:
+            logger.info(f"[MISSION] Navigate to {target_point}")
+            self.navigation_to_waypoint(target_point)
             self.wait_for_waypoint()
+            sleep(5)    # 定点自稳测试
+
+        # # 植保任务
+        # for target_point in point_array:
+        #     logger.info(f"[MISSION] Navigate to {target_point}")
+        #     self.navigation_to_waypoint(target_point)
+        #     self.wait_for_waypoint()
+        #     sleep(3)
+
+        # 回到A点
+        # logger.info("[MISSION] Go Back to Point_a")
+        # self.navigation_to_waypoint(point_a)
+        # self.wait_for_waypoint()
+        # sleep(5)
+
         # 回到基地点
-        logger.info("[MISSION] Go to base")
+        logger.info("[MISSION] Go to Base")
         self.navigation_to_waypoint(BASE_POINT)
         self.wait_for_waypoint()
+
+        # 降落
         self.pointing_landing(LANDING_POINT)
         logger.info("[MISSION] Misson-1 Finished")
 
@@ -151,8 +182,10 @@ class Mission:
                     paused = False
                     self.height_pid.set_auto_mode(True, last_output=0)
                     logger.info("[MISSION] Keep Height resumed")
+
                 out_height = int(self.height_pid(self.fc.state.alt_add.value))
                 self.fc.update_realtime_control(vel_z=out_height)
+
             else:
                 if not paused:
                     paused = True
@@ -168,11 +201,11 @@ class Mission:
         self.navigation_flag = False
         self.fc.set_flight_mode(self.fc.PROGRAM_MODE)
         self.fc.unlock()
-        inital_yaw = self.fc.state.yaw.value
+        # inital_yaw = self.fc.state.yaw.value
         sleep(2)  # 等待电机启动
         self.fc.takeoff(140)
         self.fc.wait_for_takeoff_done()
-        self.fc.set_yaw(inital_yaw, 25)
+        # self.fc.set_yaw(inital_yaw, 15)
         self.fc.wait_for_hovering(2)
         # 闭环定高
         self.fc.set_flight_mode(self.fc.HOLD_POS_MODE)
@@ -183,7 +216,7 @@ class Mission:
         self.switch_pid("default")
         sleep(0.1)
         self.navigation_flag = True
-        self.set_navigation_speed(self.navigation_speed)
+        self.set_navigation_speed(self.precision_speed)
 
     def pointing_landing(self, point):
         """
@@ -195,12 +228,12 @@ class Mission:
         self.set_navigation_speed(self.precision_speed)
         self.switch_pid("landing")
         sleep(1)
-        self.height_pid.setpoint = 60
+        self.height_pid.setpoint = 80
         sleep(1.5)
-        self.height_pid.setpoint = 30
+        self.height_pid.setpoint = 40
         sleep(1.5)
         self.height_pid.setpoint = 20
-        sleep(2)
+        sleep(3)
         self.wait_for_waypoint()
         # self.height_pid.setpoint = 0
         self.fc.set_flight_mode(self.fc.PROGRAM_MODE)
@@ -218,7 +251,7 @@ class Mission:
         self.pos_x_pid.output_limits = (-speed, speed)
         self.pos_y_pid.output_limits = (-speed, speed)
 
-    def wait_for_waypoint(self, time_thres=1, pos_thres=15, timeout=30):
+    def wait_for_waypoint(self, time_thres=1, pos_thres=10, timeout=30):
         time_count = 0
         time_start = time()
         while True:
@@ -247,10 +280,19 @@ class Mission:
         """
         ######## 解算参数 ########
         SIZE = 1000
-        SCALE_RATIO = 0.5
+        SCALE_RATIO = 1
         LOW_PASS_RATIO = 0.6
         ########################
-        paused = False
+        paused = True
+        # 建议保持位置解算持续运行，直到视觉介入再pause(需要单独写一条)
+        if not self.radar._rtpose_flag:
+            self.radar.start_resolve_pose(
+                size=SIZE,
+                scale_ratio=SCALE_RATIO,
+                low_pass_ratio=LOW_PASS_RATIO,
+            )
+            logger.info("[MISSION] Resolve pose started")
+            sleep(1)
         while self.running_flag:
             sleep(0.01)
             if (
@@ -263,6 +305,7 @@ class Mission:
                     self.pos_y_pid.set_auto_mode(True, last_output=0)
                     self.yaw_pid.set_auto_mode(True, last_output=0)
                     logger.info("[MISSION] Navigation resumed")
+
                 if not self.radar._rtpose_flag:
                     self.radar.start_resolve_pose(
                         size=SIZE,
@@ -270,35 +313,40 @@ class Mission:
                         low_pass_ratio=LOW_PASS_RATIO,
                     )
                     logger.info("[MISSION] Resolve pose started")
-                    sleep(0.01)
+                    sleep(1)
+
                 # 等待地图更新,这个event是给这个线程用的
                 if self.radar.rt_pose_update_event.wait(1):
-                    self.radar.rt_pose_update_event.clear()     # 地图更新，重新上锁，等待再次set
+
+                    self.radar.rt_pose_update_event.clear()   # 地图更新，重新上锁，等待再次set
+
                     current_x = self.radar.rt_pose[0]
                     current_y = self.radar.rt_pose[1]
-                    # if current_x > 0 and current_y > 0:
-                    #     self.fc.send_general_position(x=current_x, y=current_y)
                     current_yaw = self.radar.rt_pose[2]
-                    out_x = None
-                    out_y = None
-                    out_yaw = None
+                    out_x = 0
+                    out_y = 0
+                    out_yaw = 0
+
                     if current_x > 0:  # 0 为无效值
                         out_x = int(self.pos_x_pid(current_x))
                         if out_x is not None:
+                            pass
                             self.fc.update_realtime_control(vel_x=out_x)
                     if current_y > 0:
                         out_y = int(self.pos_y_pid(current_y))
                         if out_y is not None:
+                            pass
                             self.fc.update_realtime_control(vel_y=out_y)
-                    out_yaw = int(self.yaw_pid(current_yaw))
-                    if out_yaw is not None:
-                        self.fc.update_realtime_control(yaw=out_yaw)
+                    if current_yaw is not None:
+                        out_yaw = int(self.yaw_pid(current_yaw))
+                        if out_yaw is not None:
+                            pass
+                            self.fc.update_realtime_control(yaw=out_yaw)
                     if self.DEBUG:  # debug
-                        logger.debug(
+                        logger.info(
                             f"[MISSION] Current pose: {current_x}, {current_y}, {current_yaw}; Output: {out_x}, {out_y}, {out_yaw}"
                         )
             else:
-                self.radar.stop_resolve_pose()
                 if not paused:
                     paused = True
                     self.pos_x_pid.set_auto_mode(False)
