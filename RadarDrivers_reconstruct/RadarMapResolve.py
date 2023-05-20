@@ -163,6 +163,15 @@ class radar_map_resolve(radar_serial_updater):
             cv2.waitKey(1)
         return x_out, y_out, yaw_out
 
+    def pose_resolve_with_two_point(points: list[Point_2D], init_point1: list[int], init_point2: list[int]):
+        """
+        通过两个点解算位置
+        """
+        point_1 = points[0]
+        point_2 = points[1]
+        x1, y1 = point_1.to_xy()
+        x2, y2 = point_2.to_xy()
+
     def find_nearest(
             self, from_: int = 0, to_: int = 359, num=1, range_limit: int = 10000000, view=None
     ) -> List[Point_2D]:
@@ -183,13 +192,16 @@ class radar_map_resolve(radar_serial_updater):
                 view[to_ + 2: 360] = False
                 view[:from_] = False
         deg_arr = np.where(view)[0]
+        # 数据视图和基本数据的区别是，数据视图是基于基本数据的一个视图，对数据视图的操作会影响到基本数据，反之亦然。
         data_view = self.data[view]
         p_num = len(deg_arr)
         if p_num == 0:
             return []
         elif p_num <= num:
+            # argsort()函数的作用是将数组按照从小到大的顺序排序，并按照对应的索引值输出。
             sort_view = np.argsort(data_view)
         else:
+            # argpartition()函数的作用是找出数组中第k小的数，并将数组中的数进行分区，左边的数都比第k小的数小，右边的数都比第k小的数大。
             sort_view = np.argpartition(data_view, num)[:num]
         points = []
         for index in sort_view:
@@ -265,3 +277,61 @@ class radar_map_resolve(radar_serial_updater):
                 get_list.sort(key=lambda x: x[3])  # 按角度排序
                 return list(get_list[0][:2])
         return []
+
+    def find_obstacles(self, range_limit: int = 10000000):
+        """
+        查找障碍物
+        range_limit: int 距离限制
+        threshold: int 允许的距离误差
+        """
+        # 从0度开始到360度，查找5个极值点
+        fd_points = self.find_nearest(0, 359, 5, range_limit)
+        obstacles = []
+        for point in fd_points:
+            # 如果该点是障碍物
+            result, confidence = self.obstacles_definition(point=point)
+            if result:
+                # 将该点加入障碍物列表
+                obstacles.append([point, confidence])
+        num = len(obstacles)
+        if num < 2:
+            obstacles = []
+            for point in fd_points:
+                if self.obstacles_definition(point=point, size=5, dis_threshold=20, num_threshold=5):
+                    obstacles.append(point)
+        elif num > 2:
+            # 按照距离排序, 取置信度最高的两个障碍物(置信度: 障碍物点数)
+            obstacles.sort(key=lambda x: x[1])
+            obstacles = obstacles[-2:]
+        obstacles_point = []
+        for obstacle in obstacles:
+            obstacles_point.append(obstacle[0])
+        if obstacles is not None:
+            return obstacles
+
+    def obstacles_definition(self, point: Point_2D, size: int = 5, dis_threshold: int = 15, num_threshold: int = 8):
+        """
+        障碍物辨别
+        threshold: int 允许的最大偏移量
+        size: int 障碍物的大小, 以点为单位, 左右各size个点
+        dis_threshold: int 允许的距离误差
+        num_threshold: int 允许的最小障碍物点数
+        """
+        if point is None:
+            return False
+        deg = point.degree
+        obstacles_points_list = []
+        # 在一定范围内确定是否为障碍物
+        for i in range(size):
+            if abs(self.data[(deg + i + 360) % 360] - point.distance) <= dis_threshold:
+                point_deg = (deg + i + 360) % 360
+                obstacles_points_list.append(
+                    Point_2D(int(point_deg), int(self.data[point_deg])))
+            elif abs(self.data[(deg - i + 360) % 360] - point.distance) <= dis_threshold:
+                point_deg = (deg - i + 360) % 360
+                obstacles_points_list.append(
+                    Point_2D(int(point_deg), int(self.data[point_deg])))
+
+        # 若障碍物点数大于阈值, 则认为是障碍物
+        if len(obstacles_points_list) >= num_threshold:
+            return True, len(obstacles_points_list)

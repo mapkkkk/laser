@@ -1,0 +1,4 @@
+# gitignore
+sftp.json
+.idea
+__pycache__

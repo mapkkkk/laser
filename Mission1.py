@@ -6,18 +6,20 @@ from ProtocolMCU.Application import class_application
 from others.Logger import logger
 from time import sleep, time
 
-point_a = []
+point_a = [275, 380]
 
 point_array_test = [[145, 165],
                     [295, 165],
                     [300, 315],
                     [145, 315]]
 
-point_array = [[], [], [], [],
-               [], [], [], [],
-               [], [], [], [],
-               [], [], [], [],
-               [], [], [], []]
+point_array = [[97, 65], [97, 116], [97, 164], [97, 210],
+               [147, 65], [147, 116], [147, 164], [147, 210],
+               [197, 164], [197, 210], [247, 65], [247, 116],
+               [247, 164], [247, 210], [295, 65], [295, 116],
+               [295, 164], [295, 210], [295, 262], [297, 315],
+               [295, 360], [344, 65], [344, 116], [344, 164],
+               [344, 210], [344, 262], [344, 315], [344, 360]]
 
 
 class Mission:
@@ -78,11 +80,11 @@ class Mission:
         self.running_flag = False   # 运行flag
         self.thread_list = []    # 线程列表
         self.navigation_flag = False
-        self.navigation_speed = 25  # 导航速度
-        self.precision_speed = 15  # 精确速度
+        self.navigation_speed = 27  # 导航速度
+        self.precision_speed = 20  # 精确速度
         # self.camera_down_pwm = 32.5
         # self.camera_up_pwm = 72
-        self.cruise_height = 120  # 巡航高度
+        self.cruise_height = 125  # 巡航高度
 
     # 建立run函数
     def run(self):
@@ -118,35 +120,35 @@ class Mission:
         sleep(1)
         self.point_takeoff(BASE_POINT)
         logger.info("[MISSION] HOLDING POSE")
-        sleep(6)    # 定点自稳测试
+        sleep(2)    # 定点自稳测试
 
         ################ 开始任务 ################
         self.set_navigation_speed(self.navigation_speed)
         # 前往A点
-        # logger.info("[MISSION] Navigate to Point_a")
-        # self.navigation_to_waypoint(point_a)
-        # self.wait_for_waypoint()
-        # sleep(5)
+        logger.info("[MISSION] Navigate to Point_a")
+        self.navigation_to_waypoint(point_a)
+        self.wait_for_waypoint()
+        sleep(2)
 
         # 开始按照点一个一个前往
-        for target_point in point_array_test:
-            logger.info(f"[MISSION] Navigate to {target_point}")
-            self.navigation_to_waypoint(target_point)
-            self.wait_for_waypoint()
-            sleep(5)    # 定点自稳测试
-
-        # # 植保任务
-        # for target_point in point_array:
+        # for target_point in point_array_test:
         #     logger.info(f"[MISSION] Navigate to {target_point}")
         #     self.navigation_to_waypoint(target_point)
         #     self.wait_for_waypoint()
-        #     sleep(3)
+        #     sleep(5)    # 定点自稳测试
+
+        # # 植保任务
+        for target_point in point_array:
+            logger.info(f"[MISSION] Navigate to {target_point}")
+            self.navigation_to_waypoint(target_point)
+            self.wait_for_waypoint()
+            sleep(0.5)
 
         # 回到A点
-        # logger.info("[MISSION] Go Back to Point_a")
-        # self.navigation_to_waypoint(point_a)
-        # self.wait_for_waypoint()
-        # sleep(5)
+        logger.info("[MISSION] Go Back to Point_a")
+        self.navigation_to_waypoint(point_a)
+        self.wait_for_waypoint()
+        sleep(2)
 
         # 回到基地点
         logger.info("[MISSION] Go to Base")

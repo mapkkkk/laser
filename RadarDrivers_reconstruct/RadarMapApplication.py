@@ -118,6 +118,61 @@ class radar_map_application(radar_map_resolve):
                 )
                 time.sleep(0.5)
 
+    def pose_resolve_task_with_two_points(self):
+        """
+        两点定位任务
+        """
+        while self.pose_running:
+            try:
+                if self._map_updated_event.wait(1):
+                    self._map_updated_event.clear()
+                    if self._rtpose_flag:
+                        obstacle_points = self.find_obstacles()
+                        if obstacle_points > 2:
+                            logger.error(
+                                "[RADAR] Too many obstacles, unable to resolve pose")
+                            continue
+                        elif obstacle_points < 2:
+                            logger.error(
+                                "[RADAR] Too few obstacles, unable to resolve pose")
+                            continue
+
+                        if x is not None:
+                            if self._rt_pose_inited[0]:
+                                self.rt_pose[0] += (
+                                    x / self._rtpose_scale_ratio -
+                                    self.rt_pose[0]
+                                ) * self._rtpose_low_pass_ratio
+                            else:
+                                self.rt_pose[0] = x / self._rtpose_scale_ratio
+                                self._rt_pose_inited[0] = True
+                        if y is not None:
+                            if self._rt_pose_inited[1]:
+                                self.rt_pose[1] += (
+                                    y / self._rtpose_scale_ratio -
+                                    self.rt_pose[1]
+                                ) * self._rtpose_low_pass_ratio
+                            else:
+                                self.rt_pose[1] = y / self._rtpose_scale_ratio
+                                self._rt_pose_inited[1] = True
+                        if yaw is not None:
+                            if self._rt_pose_inited[2]:
+                                self.rt_pose[2] += (
+                                    yaw - self.rt_pose[2]
+                                ) * self._rtpose_low_pass_ratio
+                            else:
+                                self.rt_pose[2] = yaw
+                                self._rt_pose_inited[2] = True
+                        self.rt_pose_update_event.set()  # 通知位姿更新
+                else:
+                    logger.warning("[RADAR] Map resolve thread wait timeout")
+            except Exception as e:
+                import traceback
+                logger.error(
+                    f"[RADAR] Map resolve thread error: {traceback.format_exc()}"
+                )
+                time.sleep(0.5)
+
     def stop_resolve_pose(self):
         """
             停止使用点云图解算位姿
